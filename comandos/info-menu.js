@@ -332,22 +332,29 @@ let handler = async (m, { conn }) => {
           interactiveMessage: {
             header,
             body: { text: menuText },
-            footer: { text: 'Hecho por *Ado* :D' },
+            footer: { text: '' },
             contextInfo,
             nativeFlowMessage: {
               buttons: [
                 {
                   name: 'cta_url',
                   buttonParamsJson: JSON.stringify({
-                    display_text: '✿ 𝗛𝗮𝘇𝘁𝗲 𝗦𝘂𝗯𝗕𝗼𝘁',
+                    display_text: '𝗛𝗮𝘇𝘁𝗲 𝗦𝘂𝗯𝗕𝗼𝘁',
                     url: 'https://meow.hostrta.win'
                   })
                 },
                 {
                   name: 'cta_url',
                   buttonParamsJson: JSON.stringify({
-                    display_text: '✿ 𝗖𝗮𝗻𝗮𝗹',
+                    display_text: '𝗖𝗮𝗻𝗮𝗹',
                     url: 'https://whatsapp.com/channel/0029Vb75yXeKbYMVbG6Gjv3w'
+                  })
+                },
+                {
+                  name: 'cta_url',
+                  buttonParamsJson: JSON.stringify({
+                    display_text: '𝗢𝗽𝗲𝗻 𝗦𝗼𝘂𝗿𝗰𝗲',
+                    url: 'https://github.com/Ado21/WaMeowBot'
                   })
                 }
               ]
