@@ -1,14 +1,40 @@
 import fetch from 'node-fetch'
+import { jidNormalizedUser } from '@whiskeysockets/baileys'
 
-let mutedUsers = new Set()
+const mutedUsers = new Set()
 
-let handler = async (m, { conn, command }) => {
-  if (!m.isGroup) return
-  const user = m.quoted?.sender || m.mentionedJid?.[0]
-  if (!user) return m.reply('⚠️ Usa: .mute @usuario o responde a su mensaje.')
-  if (user === m.sender) return m.reply('❌ No puedes mutearte a ti mismo.')
-  if (user === conn.user.jid) return m.reply('🤖 No puedes mutear al bot.')
-  if (user === global.owner) return m.reply('👑 No puedes mutear al owner.')
+function normalizeJid(jid = '') {
+  try {
+    return jid ? jidNormalizedUser(jid) : ''
+  } catch {
+    return String(jid || '')
+  }
+}
+
+let handler = async (m, { conn, from, command }) => {
+  const chat = normalizeJid(from)
+  const ctx = m.message?.extendedTextMessage?.contextInfo
+  const user = m.mentionedJid?.[0] || ctx?.participant || m.quoted?.sender
+
+  if (!user) {
+    await conn.sendMessage(chat, { text: '☁️ Responde o menciona al usuario.' }, { quoted: m })
+    return
+  }
+
+  if (user === m.sender) {
+    await conn.sendMessage(chat, { text: '❌ No puedes mutearte a ti mismo.' }, { quoted: m })
+    return
+  }
+
+  if (user === conn.user.jid) {
+    await conn.sendMessage(chat, { text: '🤖 No puedes mutear al bot.' }, { quoted: m })
+    return
+  }
+
+  if (global.owner?.includes(user)) {
+    await conn.sendMessage(chat, { text: '👑 No puedes mutear a un Owner.' }, { quoted: m })
+    return
+  }
 
   const thumbnailUrl = command === 'mute'
     ? 'https://telegra.ph/file/f8324d9798fa2ed2317bc.png'
@@ -16,44 +42,33 @@ let handler = async (m, { conn, command }) => {
   const thumbBuffer = await fetch(thumbnailUrl).then(res => res.buffer())
 
   const preview = {
-    key: { fromMe: false, participant: '0@s.whatsapp.net', remoteJid: m.chat },
-    message: { locationMessage: { name: command === 'mute' ? 'Usuario mutado' : 'Usuario desmuteado', jpegThumbnail: thumbBuffer } }
+    key: { fromMe: false, participant: '0@s.whatsapp.net', remoteJid: chat },
+    message: { locationMessage: { name: command === 'mute' ? 'Usuario muteado' : 'Usuario desmuteado', jpegThumbnail: thumbBuffer } }
   }
 
   if (command === 'mute') {
     mutedUsers.add(user)
-    await conn.sendMessage(m.chat, { text: '*Tus mensajes serán eliminados*' }, { quoted: preview, mentions: [user] })
+    await conn.sendMessage(chat, { text: `🔇 Usuario muteado`, mentions: [user] }, { quoted: preview })
   } else {
-    if (!mutedUsers.has(user)) return m.reply('⚠️ Ese usuario no está muteado.')
     mutedUsers.delete(user)
-    await conn.sendMessage(m.chat, { text: '*Tus mensajes no serán eliminados*' }, { quoted: preview, mentions: [user] })
+    await conn.sendMessage(chat, { text: `🔊 Usuario desmuteado`, mentions: [user] }, { quoted: preview })
   }
 }
 
 handler.before = async (m, { conn }) => {
   if (!m.isGroup || m.fromMe) return
-  const user = m.sender
   const chat = m.chat
+  const user = m.sender
 
   if (mutedUsers.has(user)) {
-    if (!global.parallelDeleteQueue) global.parallelDeleteQueue = []
-    global.parallelDeleteQueue.push({ chat, key: m.key, conn })
-    if (!global.parallelDeleteRunning) {
-      global.parallelDeleteRunning = true
-      setImmediate(async function loop() {
-        const queue = global.parallelDeleteQueue.splice(0)
-        await Promise.all(queue.map(({ chat, key, conn }) => conn.sendMessage(chat, { delete: key }).catch(() => {})))
-        if (global.parallelDeleteQueue.length) setImmediate(loop)
-        else global.parallelDeleteRunning = false
-      }())
-    }
-    return
+    await conn.sendMessage(chat, { delete: m.key }).catch(() => {})
+    return true
   }
 }
 
 handler.help = ['mute @usuario', 'unmute @usuario']
-handler.tags = ['group']
-handler.command = /^(mute|unmute)$/i
+handler.tags = ['GRUPOS']
+handler.command = ['mute', 'unmute']
 handler.group = true
 handler.admin = true
 
