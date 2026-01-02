@@ -3,9 +3,9 @@ import { generateWAMessageFromContent } from '@whiskeysockets/baileys'
 const handler = async (m, { conn }) => {
   const chat = m.chat
 
-  // reacción
+  // Reacción
   await conn.sendMessage(chat, {
-    react: { text: "🔗", key: m.key }
+    react: { text: '🔗', key: m.key }
   })
 
   try {
@@ -27,44 +27,58 @@ const handler = async (m, { conn }) => {
       conn.groupInviteCode(chat).catch(() => null)
     ])
 
-    const groupName = meta.subject || "Grupo"
-    const link = code
-      ? `https://chat.whatsapp.com/${code}`
-      : null
+    const groupName = meta.subject || 'Grupo'
+    if (!code) throw new Error('Sin enlace')
 
-    const fallback = "https://files.catbox.moe/xr2m6u.jpg"
+    const link = `https://chat.whatsapp.com/${code}`
+
+    // Foto del grupo
     let ppBuffer = null
+    const fallback = 'https://files.catbox.moe/xr2m6u.jpg'
 
     try {
-      const url = await conn.profilePictureUrl(chat, "image").catch(() => null)
-      if (url && url !== "not-authorized" && url !== "not-exist") {
+      const url = await conn.profilePictureUrl(chat, 'image').catch(() => null)
+      if (url && !['not-authorized', 'not-exist'].includes(url)) {
         ppBuffer = await safeFetch(url, 6000)
       }
     } catch {}
 
-    if (!ppBuffer) {
-      ppBuffer = await safeFetch(fallback)
-    }
+    if (!ppBuffer) ppBuffer = await safeFetch(fallback)
 
-    // mensaje interactivo con copiar link
-    const msg = generateWAMessageFromContent(
+    /* =============================
+       1️⃣ MENSAJE PREMIUM (IMAGEN)
+       ============================= */
+    await conn.sendMessage(
+      chat,
+      {
+        image: ppBuffer,
+        caption:
+          `*${groupName}*\n\n` +
+          `🔗 Enlace del grupo:\n${link}`
+      },
+      { quoted: m }
+    )
+
+    /* =============================
+       2️⃣ BOTÓN COPIAR (SIN MEDIA)
+       ============================= */
+    const copyMsg = generateWAMessageFromContent(
       chat,
       {
         viewOnceMessage: {
           message: {
             interactiveMessage: {
               body: {
-                text: `*${groupName}*\n\n${link || 'Sin enlace disponible'}`
+                text: `📋 *Copiar enlace del grupo*\n\n${groupName}`
               },
-              footer: { text: 'Toca para copiar el enlace' },
+              footer: { text: 'Toca el botón para copiar' },
               header: {
-                hasMediaAttachment: true,
-                imageMessage: {
-                  jpegThumbnail: ppBuffer
-                }
+                title: '🔗 Enlace del Grupo',
+                subtitle: 'WhatsApp',
+                hasMediaAttachment: false
               },
               nativeFlowMessage: {
-                buttons: link ? [
+                buttons: [
                   {
                     name: 'cta_copy',
                     buttonParamsJson: JSON.stringify({
@@ -73,7 +87,7 @@ const handler = async (m, { conn }) => {
                       copy_code: link
                     })
                   }
-                ] : []
+                ]
               }
             }
           }
@@ -82,12 +96,14 @@ const handler = async (m, { conn }) => {
       { quoted: m }
     )
 
-    await conn.relayMessage(chat, msg.message, { messageId: msg.key.id })
+    await conn.relayMessage(chat, copyMsg.message, {
+      messageId: copyMsg.key.id
+    })
 
   } catch (err) {
     await conn.sendMessage(
       chat,
-      { text: "❌ Ocurrió un error al generar el enlace." },
+      { text: '❌ No se pudo generar el enlace del grupo.' },
       { quoted: m }
     )
   }
