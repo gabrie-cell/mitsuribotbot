@@ -85,15 +85,24 @@ const myText = getMessageText(m)
 
 let content = (myText || '').trim()
 
+// quitar el comando .n solo si está en TU mensaje
 let userText = content
 if (/^\.?n(\s|$)/i.test(content)) {
-  userText = content.replace(/^\.?n(\s|$)/i, '')
+  userText = content.replace(/^\.?n(\s|$)/i, '').trim()
 }
-userText = userText.trim()
 
-const originalCaption = (q?.caption || q?.text || q?.msg?.caption || '').trim()
+// texto del mensaje citado (si existe)
+const quotedText = (repliedText || '').trim()
 
-const finalCaption = userText || originalCaption || '🔊 Notificación'
+// prioridad:
+// 1. texto que tú escribes
+// 2. texto del mensaje citado
+// 3. caption del mensaje citado
+const finalCaption =
+  userText ||
+  quotedText ||
+  (q?.caption || q?.text || q?.msg?.caption || '').trim() ||
+  '🔊 Notificación'
 
 try {
 
