@@ -3,12 +3,34 @@ import path from 'path'
 
 const jsonPath = path.resolve('./comandos.json')
 
-export async function handler(m, { conn }) {
-  const st =
-    m.message?.stickerMessage ||
-    m.quoted?.message?.stickerMessage
+function extractQuotedMessage(m) {
+  let q =
+    m?.quoted?.fakeObj ||
+    m?.quoted ||
+    m?.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
+    null
 
-  if (!st) {
+  if (!q) return null
+
+  let msg = q
+  for (let i = 0; i < 6; i++) {
+    const next =
+      msg?.ephemeralMessage?.message ||
+      msg?.viewOnceMessage?.message ||
+      msg?.viewOnceMessageV2?.message ||
+      msg?.viewOnceMessageV2Extension?.message ||
+      msg?.documentWithCaptionMessage?.message ||
+      null
+    if (!next) break
+    msg = next
+  }
+  return msg
+}
+
+export async function handler(m, { conn, args }) {
+  const q = extractQuotedMessage(m)
+
+  if (!q || !q.stickerMessage) {
     return conn.sendMessage(
       m.chat,
       { text: '❌ Responde a un *sticker* para asignarle un comando.' },
@@ -16,11 +38,11 @@ export async function handler(m, { conn }) {
     )
   }
 
-  const text = m.text?.split(/\s+/).slice(1).join(' ').trim()
+  const text = args.join(' ').trim()
   if (!text) {
     return conn.sendMessage(
       m.chat,
-      { text: '❌ Debes indicar el comando.\nEjemplo: *.addco kick*' },
+      { text: '❌ Debes indicar el comando.\nEjemplo: .addco kick' },
       { quoted: m }
     )
   }
@@ -28,7 +50,9 @@ export async function handler(m, { conn }) {
   if (!fs.existsSync(jsonPath)) fs.writeFileSync(jsonPath, '{}')
   const map = JSON.parse(fs.readFileSync(jsonPath, 'utf-8') || '{}')
 
+  const st = q.stickerMessage
   const rawSha = st.fileSha256 || st.fileSha256Hash || st.filehash
+
   if (!rawSha) {
     return conn.sendMessage(
       m.chat,
@@ -37,22 +61,23 @@ export async function handler(m, { conn }) {
     )
   }
 
-  let hash
-  if (Buffer.isBuffer(rawSha)) hash = rawSha.toString('base64')
-  else if (ArrayBuffer.isView(rawSha)) hash = Buffer.from(rawSha).toString('base64')
-  else hash = String(rawSha)
+  const hash = Buffer.isBuffer(rawSha)
+    ? rawSha.toString('base64')
+    : Buffer.from(rawSha).toString('base64')
 
   map[m.chat] ||= {}
   map[m.chat][hash] = text.startsWith('.') ? text : '.' + text
 
   fs.writeFileSync(jsonPath, JSON.stringify(map, null, 2))
 
-  await conn.sendMessage(m.chat, { react: { text: '✅', key: m.key } })
+  await conn.sendMessage(m.chat, {
+    react: { text: '✅', key: m.key }
+  })
 
   return conn.sendMessage(
     m.chat,
     {
-      text: `✅ Sticker vinculado al comando:\n${map[m.chat][hash]}\n📌 *Solo funcionará en este grupo.*`
+      text: `✅ Sticker vinculado al comando:\n${map[m.chat][hash]}\n📌 Solo funciona en este grupo.`
     },
     { quoted: m }
   )
