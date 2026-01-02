@@ -50,6 +50,6 @@ let handler = async (m, { conn, from, command, args }) => {
 }
 
 handler.command = ["grupo", "abrir", "cerrar", "open", "close"]
-handler.admin = true
-handler.botAdmin = true
+handler.useradm = true;
+handler.botadm = true;
 export default handler
