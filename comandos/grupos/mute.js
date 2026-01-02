@@ -1,13 +1,12 @@
 import fetch from 'node-fetch'
 import fs from 'fs/promises'
 
-const OWNER_LID = ['', '']
+const OWNER_LID = ['159606034665538@lid', '205819731832938@lid']
 const DB_DIR = './database'
 const DATA_FILE = `${DB_DIR}/muted.json`
 
 if (!await fs.stat(DB_DIR).catch(() => false)) await fs.mkdir(DB_DIR)
-if (!await fs.stat(DATA_FILE).catch(() => false))
-  await fs.writeFile(DATA_FILE, JSON.stringify({}, null, 2))
+if (!await fs.stat(DATA_FILE).catch(() => false)) await fs.writeFile(DATA_FILE, JSON.stringify({}, null, 2))
 
 let mutedData
 try {
@@ -74,17 +73,19 @@ let handler = async (m, { conn, from, command }) => {
   }
 }
 
-// Esto es lo importante para que **elimine los mensajes** de los muteados
 handler.before = async (m, { conn }) => {
   if (!m.isGroup) return
   if (m.fromMe) return
   if (OWNER_LID.includes(m.sender)) return
 
-  const mutedList = mutedData[m.chat || m.from]
+  const chatId = m.chat || m.from || m.key?.remoteJid
+  const mutedList = mutedData[chatId]
   if (!mutedList || !mutedList.includes(m.sender)) return
 
-  // Solo borrar el mensaje del muteado
-  await conn.sendMessage(m.chat || m.from, { delete: m.key }).catch(() => {})
+  const key = m.key
+  if (chatId && key) {
+    await conn.sendMessage(chatId, { delete: key }).catch(() => {})
+  }
   return true
 }
 
