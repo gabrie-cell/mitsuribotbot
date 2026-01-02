@@ -5,7 +5,6 @@ import config from './config.js'
 import { isBotEnabled, getCommandPrefix } from './biblioteca/settings.js'
 import { getPrimaryKey, getSessionKey } from './biblioteca/primary.js'
 import printMessage from './biblioteca/print.js'
-import { decorateText, createDecoratedSock } from './biblioteca/decor.js'
 
 const commands = new Map()
 
