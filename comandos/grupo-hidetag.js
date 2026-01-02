@@ -1,10 +1,13 @@
-import { generateWAMessageFromContent, downloadContentFromMessage } from '@whiskeysockets/baileys'
+import {
+  generateWAMessageFromContent,
+  downloadContentFromMessage
+} from '@whiskeysockets/baileys'
 import fetch from 'node-fetch'
 
 let thumb = null
 fetch('https://files.catbox.moe/tx6prq.jpg')
   .then(r => r.arrayBuffer())
-  .then(b => thumb = Buffer.from(b))
+  .then(b => (thumb = Buffer.from(b)))
   .catch(() => null)
 
 function extractQuotedMessage(m) {
@@ -34,125 +37,117 @@ function extractQuotedMessage(m) {
 async function downloadMedia(msgContent, type) {
   const stream = await downloadContentFromMessage(msgContent, type)
   let buffer = Buffer.alloc(0)
-  for await (const chunk of stream) buffer = Buffer.concat([buffer, chunk])
+  for await (const c of stream) buffer = Buffer.concat([buffer, c])
   return buffer
 }
 
 const handler = async (m, { conn, args, participants }) => {
-  try {
-    if (!m.isGroup || m.key.fromMe) return
+  if (!m.isGroup || m.key.fromMe) return
 
-    const users = [...new Set(participants.map(p => p.id))]
-    const textExtra = args.join(' ').trim()
+  const users = participants.map(p => p.id)
+  const textExtra = args.join(' ').trim()
 
-    const fkontak = {
-      key: {
-        remoteJid: m.chat,
-        fromMe: false,
-        id: 'Angel'
-      },
-      message: {
-        locationMessage: {
+  const fkontak = {
+    key: { remoteJid: m.chat, fromMe: false, id: 'Angel' },
+    message: {
+      locationMessage: {
         name: '𝖧𝗈𝗅𝖺, 𝖲𝗈𝗒 𝖠𝗇𝗀𝖾𝗅 𝖡𝗈𝗍',
-          jpegThumbnail: thumb
-        }
-      },
-      participant: '0@s.whatsapp.net'
-    }
+        jpegThumbnail: thumb
+      }
+    },
+    participant: '0@s.whatsapp.net'
+  }
 
-    await conn.sendMessage(m.chat, { react: { text: '🗣️', key: m.key } })
+  await conn.sendMessage(m.chat, {
+    react: { text: '🗣️', key: m.key }
+  })
 
-    let q = extractQuotedMessage(m)
+  let q = extractQuotedMessage(m)
 
-    if (!q && !textExtra) {
-      return m.reply('❌ No hay nada para notificar.')
-    }
+  const caption =
+    m.message?.imageMessage?.caption ||
+    m.message?.videoMessage?.caption ||
+    ''
 
-    if (q) {
-      const mtype = Object.keys(q)[0]
+  const isCaptionCmd = /^\.n(\s|$)/i.test(caption)
+  const cleanCaption = caption.replace(/^\.n\s*/i, '').trim()
 
-      let text =
-        textExtra ||
-        q?.conversation ||
-        q?.extendedTextMessage?.text ||
-        q?.message?.conversation ||
-        q?.message?.extendedTextMessage?.text ||
-        ''
+  if (!q && isCaptionCmd) q = m.message
 
-      if (!text && m.quoted) {
-        text =
-          m.quoted.text ||
-          m.quoted.msg?.text ||
-          m.quoted.msg?.conversation ||
-          ''
+  if (!q && !textExtra) return
+
+  if (q) {
+    const mtype = Object.keys(q)[0]
+    const isMedia = [
+      'imageMessage',
+      'videoMessage',
+      'audioMessage',
+      'stickerMessage'
+    ].includes(mtype)
+
+    if (isMedia) {
+      const mediaType = mtype.replace('Message', '')
+      const buffer = await downloadMedia(q[mtype], mediaType)
+
+      const msg = { mentions: users }
+
+      if (mtype === 'imageMessage') {
+        msg.image = buffer
+        msg.caption = cleanCaption || textExtra || q.imageMessage?.caption || ''
       }
 
-      const isMedia = [
-        'imageMessage',
-        'videoMessage',
-        'audioMessage',
-        'stickerMessage'
-      ].includes(mtype)
-
-      if (isMedia) {
-        const buffer = await downloadMedia(q[mtype], mtype.replace('Message', ''))
-
-        const msg = { mentions: users }
-
-        if (mtype === 'imageMessage') {
-          msg.image = buffer
-          msg.caption = text
-        } else if (mtype === 'videoMessage') {
-          msg.video = buffer
-          msg.caption = text
-          msg.mimetype = 'video/mp4'
-        } else if (mtype === 'audioMessage') {
-          msg.audio = buffer
-          msg.mimetype = 'audio/mpeg'
-          msg.ptt = false
-        } else if (mtype === 'stickerMessage') {
-          msg.sticker = buffer
-        }
-
-        return await conn.sendMessage(m.chat, msg, { quoted: fkontak })
+      if (mtype === 'videoMessage') {
+        msg.video = buffer
+        msg.mimetype = 'video/mp4'
+        msg.caption = cleanCaption || textExtra || q.videoMessage?.caption || ''
       }
 
-      const newMsg = conn.cMod(
-        m.chat,
-        generateWAMessageFromContent(
-          m.chat,
-          { extendedTextMessage: { text } },
-          { quoted: fkontak, userJid: conn.user.id }
-        ),
-        text,
-        conn.user.jid,
-        { mentions: users }
-      )
+      if (mtype === 'audioMessage') {
+        msg.audio = buffer
+        msg.mimetype = 'audio/mpeg'
+        msg.ptt = false
+      }
 
-      return await conn.relayMessage(
-        m.chat,
-        newMsg.message,
-        { messageId: newMsg.key.id }
-      )
+      if (mtype === 'stickerMessage') {
+        msg.sticker = buffer
+      }
+
+      return conn.sendMessage(m.chat, msg, { quoted: fkontak })
     }
 
-    return await conn.sendMessage(
+    const text =
+      cleanCaption ||
+      textExtra ||
+      q.conversation ||
+      q.extendedTextMessage?.text ||
+      ''
+
+    const newMsg = conn.cMod(
       m.chat,
-      { text: textExtra, mentions: users },
-      { quoted: fkontak }
+      generateWAMessageFromContent(
+        m.chat,
+        { extendedTextMessage: { text } },
+        { quoted: fkontak, userJid: conn.user.id }
+      ),
+      text,
+      conn.user.jid,
+      { mentions: users }
     )
 
-  } catch (err) {
-    console.error('Error en .nall:', err)
-    await conn.sendMessage(
+    return conn.relayMessage(
       m.chat,
-      { text: '🔊 Notificación', mentions: participants.map(p => p.id) }
+      newMsg.message,
+      { messageId: newMsg.key.id }
     )
   }
+
+  return conn.sendMessage(
+    m.chat,
+    { text: textExtra, mentions: users },
+    { quoted: fkontak }
+  )
 }
 
-handler.help = ['nall']
-handler.tags = ['grupos']
 handler.command = ['n']
 handler.group = true
 handler.admin = true
