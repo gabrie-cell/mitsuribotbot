@@ -502,45 +502,6 @@ export async function handleMessage(sock, msg) {
     const senderRaw = getSender(msg)
     const sender = normalizeJid(senderRaw)
     const isGroup = isGroupJid(from)
-try {
-  const st =
-    m.message?.stickerMessage ||
-    m.message?.ephemeralMessage?.message?.stickerMessage ||
-    null
-
-  if (st && m.isGroup) {
-    const jsonPath = './comandos.json'
-    if (!fs.existsSync(jsonPath)) fs.writeFileSync(jsonPath, '{}')
-
-    const map = JSON.parse(fs.readFileSync(jsonPath, 'utf-8') || '{}')
-    const groupMap = map[m.chat]
-    if (!groupMap) return
-
-    const rawSha = st.fileSha256 || st.fileSha256Hash || st.filehash
-    if (!rawSha) return
-
-    const hash = Buffer.isBuffer(rawSha)
-      ? rawSha.toString('base64')
-      : Buffer.from(rawSha).toString('base64')
-
-    const mapped = groupMap[hash]
-    if (!mapped) return
-
-    const pref =
-      (Array.isArray(global.prefixes) && global.prefixes[0]) || '.'
-
-    m.text = mapped.startsWith(pref)
-      ? mapped
-      : pref + mapped
-
-    m.isCommand = true
-
-    console.log('✅ Sticker→cmd:', m.chat, m.text)
-  }
-} catch (e) {
-  console.error('❌ Error Sticker→cmd:', e)
-}
-
 
     if (isGroup) {
       try {
