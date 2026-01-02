@@ -1,9 +1,13 @@
-const handler = async (m, { conn, participants }) => {
-  let chat = global.db?.data?.chats?.[m.chat] || {}
-  let emoji = chat.emojiTag || '┊»'
+const handler = async (m, { conn }) => {
+  if (!m.isGroup) return
+
+  const metadata = await conn.groupMetadata(m.chat)
+  const participants = metadata.participants || []
+
+  let emoji = '┊»'
 
   const countryFlags = {
-    '1':'🇺🇸','7':'🇷🇺','20':'🇪🇬','27':'🇿🇦','30':'🇬🇷','31':'🇳🇱','32':'🇧🇪','33':'🇫🇷','34':'🇪🇸','36':'🇭🇺','39':'🇮🇹',
+        '1':'🇺🇸','7':'🇷🇺','20':'🇪🇬','27':'🇿🇦','30':'🇬🇷','31':'🇳🇱','32':'🇧🇪','33':'🇫🇷','34':'🇪🇸','36':'🇭🇺','39':'🇮🇹',
     '40':'🇷🇴','41':'🇨🇭','43':'🇦🇹','44':'🇬🇧','45':'🇩🇰','46':'🇸🇪','47':'🇳🇴','48':'🇵🇱','49':'🇩🇪',
     '51':'🇵🇪','52':'🇲🇽','53':'🇨🇺','54':'🇦🇷','55':'🇧🇷','56':'🇨🇱','57':'🇨🇴','58':'🇻🇪',
     '60':'🇲🇾','61':'🇦🇺','62':'🇮🇩','63':'🇵🇭','64':'🇳🇿','65':'🇸🇬','66':'🇹🇭',
@@ -34,10 +38,10 @@ const handler = async (m, { conn, participants }) => {
   }
 
   const getCountryPrefix = jid => {
-    const phone = jid.split('@')[0].replace(/^0+/, '')
+    const phone = jid.split('@')[0]
     const prefixes = Object.keys(countryFlags).sort((a, b) => b.length - a.length)
-    for (let p of prefixes) if (phone.startsWith(p)) return p
-    return 'other'
+    for (const p of prefixes) if (phone.startsWith(p)) return p
+    return null
   }
 
   await conn.sendMessage(m.chat, {
@@ -47,16 +51,18 @@ const handler = async (m, { conn, participants }) => {
   let teks = `*!  MENCION GENERAL  !*\n*PARA ${participants.length} MIEMBROS* 🗣️\n\n`
 
   for (const p of participants) {
-    const jid = p.jid || p.id
+    const jid = p.id || p.jid
     const prefix = getCountryPrefix(jid)
-    teks += `${emoji} ${countryFlags[prefix] || '🏳️'} @${jid.split('@')[0]}\n`
+    const flag = prefix ? countryFlags[prefix] : '🏳️'
+
+    teks += `${emoji} ${flag} @${jid.split('@')[0]}\n`
   }
 
   await conn.sendMessage(
     m.chat,
     {
       text: teks,
-      mentions: participants.map(p => p.jid || p.id)
+      mentions: participants.map(p => p.id || p.jid)
     },
     { quoted: m }
   )
