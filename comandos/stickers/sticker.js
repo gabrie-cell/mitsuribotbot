@@ -104,8 +104,7 @@ const handler = async (msg, { conn, wa }) => {
 
 handler.help = ["𝖲"]
 handler.tags = ["𝖲𝖳𝖨𝖢𝖪𝖤𝖱𝖲"]
-handler.customPrefix = /^(\.s|s)$/i
-handler.command = new RegExp
+handler.command = ['sticker', 's']
 export default handler;
 
 async function imageToWebp(media) {
