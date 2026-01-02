@@ -504,16 +504,19 @@ export async function handleMessage(sock, msg) {
     const sender = normalizeJid(senderRaw)
     const isGroup = isGroupJid(from)
 
-try {
-  const unwrapped = unwrapMessage(msg)
-  const st = unwrapped?.stickerMessage
+   try {
+  const st =
+    m.message?.stickerMessage ||
+    m.message?.ephemeralMessage?.message?.stickerMessage ||
+    null
 
-  if (st && isGroup) {
+  if (st && m.isGroup) {
     const jsonPath = './comandos.json'
     if (!fs.existsSync(jsonPath)) fs.writeFileSync(jsonPath, '{}')
 
     const map = JSON.parse(fs.readFileSync(jsonPath, 'utf-8') || '{}')
-    const groupMap = map[from]
+
+    const groupMap = map[m.chat]
     if (!groupMap) return
 
     const rawSha = st.fileSha256 || st.fileSha256Hash || st.filehash
@@ -531,22 +534,24 @@ try {
 
     let mapped = null
     for (const k of candidates) {
-      if (groupMap[k]?.trim()) {
+      if (groupMap[k] && groupMap[k].trim()) {
         mapped = groupMap[k].trim()
         break
       }
     }
 
     if (mapped) {
-      const pref = getPrefixFor(sock)
-      msg.text = (mapped.startsWith(pref) ? mapped : pref + mapped)
-      msg.isCommand = true
+      const pref = (Array.isArray(global.prefixes) && global.prefixes[0]) || '.'
+      const injected = mapped.startsWith(pref) ? mapped : pref + mapped
 
-      console.log('✅ Sticker → comando:', from, msg.text)
+      m.text = injected.toLowerCase()
+      m.isCommand = true
+
+      console.log('✅ Sticker→cmd (solo grupo):', m.chat, m.text)
     }
   }
 } catch (e) {
-  console.error('❌ Error Sticker → comando:', e)
+  console.error('❌ Error Sticker→cmd:', e)
 }
 
     if (isGroup) {
