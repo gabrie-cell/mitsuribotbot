@@ -1,18 +1,7 @@
-import { jidNormalizedUser } from '@whiskeysockets/baileys'
-
-function normalizeJid(jid = '') {
-  try {
-    return jid ? jidNormalizedUser(jid) : ''
-  } catch {
-    return String(jid || '')
-  }
-}
-
 const handler = async (m, { conn, from }) => {
-  const chat = normalizeJid(from)
 
-  await conn.sendMessage(chat, {
-    react: { text: "🔗", key: m.key }
+  await conn.sendMessage(from, {
+    react: { text: '🔗', key: m.key }
   })
 
   try {
@@ -29,22 +18,18 @@ const handler = async (m, { conn, from }) => {
       }
     }
 
-    const [meta, code] = await Promise.all([
-      conn.groupMetadata(chat),
-      conn.groupInviteCode(chat).catch(() => null)
-    ])
+    const code = await conn.groupInviteCode(from).catch(() => null)
 
-    const groupName = meta?.subject || "Grupo"
     const link = code
       ? `https://chat.whatsapp.com/${code}`
-      : "Sin enlace disponible"
+      : 'Sin enlace disponible'
 
-    const fallback = "https://files.catbox.moe/xr2m6u.jpg"
+    const fallback = 'https://files.catbox.moe/xr2m6u.jpg'
     let ppBuffer = null
 
     try {
-      const url = await conn.profilePictureUrl(chat, "image").catch(() => null)
-      if (url && url !== "not-authorized" && url !== "not-exist") {
+      const url = await conn.profilePictureUrl(from, 'image').catch(() => null)
+      if (url && url !== 'not-authorized' && url !== 'not-exist') {
         ppBuffer = await safeFetch(url, 6000)
       }
     } catch {}
@@ -53,24 +38,18 @@ const handler = async (m, { conn, from }) => {
       ppBuffer = await safeFetch(fallback)
     }
 
-    await conn.sendMessage(
-      chat,
-      {
-        image: ppBuffer,
-        caption: `*${groupName}*\n${link}`
-      },
-      { quoted: m }
-    )
+    await conn.sendMessage(from, {
+      image: ppBuffer,
+      caption: `*Link del grupo*\n${link}`
+    }, { quoted: m })
 
-  } catch (err) {
-    await conn.sendMessage(
-      chat,
-      { text: "❌ Ocurrió un error al generar el enlace." },
-      { quoted: m }
-    )
+  } catch {
+    await conn.sendMessage(from, {
+      text: '❌ Ocurrió un error al generar el enlace.'
+    }, { quoted: m })
   }
 }
 
 handler.command = ['link']
-handler.botadm = true
+handler.botadm = true;
 export default handler
