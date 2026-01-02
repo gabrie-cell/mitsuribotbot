@@ -1,7 +1,7 @@
 import fetch from 'node-fetch'
 import fs from 'fs/promises'
 
-const OWNER_LID = ['159606034665538@lid', '205819731832938@lid']
+const OWNER_LID = ['', '']
 const DB_DIR = './database'
 const DATA_FILE = `${DB_DIR}/muted.json`
 
@@ -51,17 +51,8 @@ let handler = async (m, { conn, from, command }) => {
   const thumb = await getThumb(imgUrl)
 
   const preview = {
-    key: {
-      fromMe: false,
-      participant: '0@s.whatsapp.net',
-      remoteJid: from
-    },
-    message: {
-      locationMessage: {
-        name: command === 'mute' ? 'Usuario muteado' : 'Usuario desmuteado',
-        jpegThumbnail: thumb
-      }
-    }
+    key: { fromMe: false, participant: '0@s.whatsapp.net', remoteJid: from },
+    message: { locationMessage: { name: command === 'mute' ? 'Usuario muteado' : 'Usuario desmuteado', jpegThumbnail: thumb } }
   }
 
   if (!mutedData[from]) mutedData[from] = []
@@ -83,24 +74,18 @@ let handler = async (m, { conn, from, command }) => {
   }
 }
 
-handler.before = async (m, { conn, isCommand }) => {
+// Esto es lo importante para que **elimine los mensajes** de los muteados
+handler.before = async (m, { conn }) => {
   if (!m.isGroup) return
   if (m.fromMe) return
   if (OWNER_LID.includes(m.sender)) return
 
-  const mutedList = mutedData[m.chat]
+  const mutedList = mutedData[m.chat || m.from]
   if (!mutedList || !mutedList.includes(m.sender)) return
-  if (isCommand) return true
 
-  await conn.sendMessage(m.chat, { delete: m.key }).catch(() => {})
+  // Solo borrar el mensaje del muteado
+  await conn.sendMessage(m.chat || m.from, { delete: m.key }).catch(() => {})
   return true
-}
-
-handler.all = async (m) => {
-  if (!m.isGroup) return
-  if (m.fromMe || OWNER_LID.includes(m.sender)) return
-  const mutedList = mutedData[m.chat]
-  if (mutedList && mutedList.includes(m.sender)) return false
 }
 
 handler.help = ['mute @usuario', 'unmute @usuario']
