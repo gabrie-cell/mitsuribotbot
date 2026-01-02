@@ -70,7 +70,7 @@ const handler = async (m, { conn, participants }) => {
   const users = [...new Set(participants.map(p => p.id))]
 
   const q = m.quoted ? unwrapMessage(m.quoted) : unwrapMessage(m)
-  const mtype = q.mtype || Object.keys(q.message || {})[0] || ''
+  const mtype = q?.mtype || Object.keys(q?.message || {})[0] || ''
 
   const isMedia = [
     'imageMessage',
@@ -80,8 +80,11 @@ const handler = async (m, { conn, participants }) => {
   ].includes(mtype)
 
   const content = getMessageText(m).trim()
-const userText = content.replace(/^\.?n(\s|$)/i, '').trim()
-  const originalCaption = (q.msg?.caption || q.text || '').trim()
+  const userText = content.replace(/^\.?n(\s|$)/i, '').trim()
+
+  const originalCaption =
+    (q?.msg?.caption || q?.text || '').trim()
+
   const finalCaption = userText || originalCaption || '🔊 Notificación'
 
   try {
@@ -131,6 +134,7 @@ const userText = content.replace(/^\.?n(\s|$)/i, '').trim()
     }
 
     if (m.quoted && !isMedia) {
+
       const newMsg = conn.cMod(
         m.chat,
         generateWAMessageFromContent(
@@ -142,7 +146,7 @@ const userText = content.replace(/^\.?n(\s|$)/i, '').trim()
           { quoted: fkontak, userJid: conn.user.id }
         ),
         finalCaption,
-        conn.user.jid,
+        conn.user.id,
         { mentions: users }
       )
 
@@ -168,9 +172,9 @@ const userText = content.replace(/^\.?n(\s|$)/i, '').trim()
   }
 }
 
-handler.help = ['𝖭𝗈𝗍𝗂𝖿𝗒']
-handler.tags = ['𝖦𝖱𝖴𝖯𝖮𝖲']
-handler.command = ['n']   // prefix normal
+handler.help = ['notify']
+handler.tags = ['grupo']
+handler.command = ['n']
 handler.group = true
 handler.admin = true
 
