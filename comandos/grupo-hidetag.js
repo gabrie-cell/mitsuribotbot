@@ -80,7 +80,10 @@ const isMedia = [
 'stickerMessage'
 ].includes(mtype)
 
-const content = getMessageText(m).trim()
+const repliedText = m.quoted ? getMessageText(m.quoted) : ''
+const myText = getMessageText(m)
+
+let content = (myText || '').trim()
 
 let userText = content
 if (/^\.?n(\s|$)/i.test(content)) {
