@@ -6,14 +6,12 @@ const jsonPath = path.resolve('./comandos.json')
 export async function handler(m, { conn }) {
   const st =
     m.message?.stickerMessage ||
-    m.message?.ephemeralMessage?.message?.stickerMessage ||
-    m.message?.extendedTextMessage?.contextInfo?.quotedMessage?.stickerMessage ||
-    m.message?.ephemeralMessage?.message?.extendedTextMessage?.contextInfo?.quotedMessage?.stickerMessage
+    m.quoted?.message?.stickerMessage
 
   if (!st) {
     return conn.sendMessage(
       m.chat,
-      { text: '❌ Responde a un sticker para asignarle un comando.' },
+      { text: '❌ Responde a un *sticker* para asignarle un comando.' },
       { quoted: m }
     )
   }
@@ -22,7 +20,7 @@ export async function handler(m, { conn }) {
   if (!text) {
     return conn.sendMessage(
       m.chat,
-      { text: '❌ Debes indicar el comando que quieres asociar al sticker.\nEjemplo: .addco kick' },
+      { text: '❌ Debes indicar el comando.\nEjemplo: *.addco kick*' },
       { quoted: m }
     )
   }
@@ -42,7 +40,7 @@ export async function handler(m, { conn }) {
   let hash
   if (Buffer.isBuffer(rawSha)) hash = rawSha.toString('base64')
   else if (ArrayBuffer.isView(rawSha)) hash = Buffer.from(rawSha).toString('base64')
-  else hash = rawSha.toString()
+  else hash = String(rawSha)
 
   map[m.chat] ||= {}
   map[m.chat][hash] = text.startsWith('.') ? text : '.' + text
@@ -53,7 +51,9 @@ export async function handler(m, { conn }) {
 
   return conn.sendMessage(
     m.chat,
-    { text: `✅ Sticker vinculado al comando: ${map[m.chat][hash]}\n📌 Solo funcionará en este grupo.` },
+    {
+      text: `✅ Sticker vinculado al comando:\n${map[m.chat][hash]}\n📌 *Solo funcionará en este grupo.*`
+    },
     { quoted: m }
   )
 }
