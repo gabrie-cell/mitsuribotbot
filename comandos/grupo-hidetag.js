@@ -4,10 +4,10 @@ import fetch from 'node-fetch'
 let thumb = null
 fetch('https://files.catbox.moe/tx6prq.jpg')
 .then(r => r.arrayBuffer())
-.then(buf => thumb = Buffer.from(buf))
+.then(b => thumb = Buffer.from(b))
 .catch(() => null)
 
-function unwrapMessage(m = {}) {
+function unwrap(m = {}) {
   let n = m
   while (
     n?.viewOnceMessage?.message ||
@@ -24,23 +24,21 @@ function unwrapMessage(m = {}) {
   return n
 }
 
-function getMessageText(m) {
-  const msg = unwrapMessage(m.message) || {}
+function ownText(msg) {
+  const m = unwrap(msg.message)
   return (
-    m.text ||
-    m.msg?.caption ||
-    msg?.extendedTextMessage?.text ||
-    msg?.conversation ||
+    m?.conversation ||
+    m?.extendedTextMessage?.text ||
     ''
   )
 }
 
-async function downloadMedia(msgContent, type) {
+async function downloadMedia(msg, type) {
   try {
-    const stream = await downloadContentFromMessage(msgContent, type)
-    let buffer = Buffer.alloc(0)
-    for await (const chunk of stream) buffer = Buffer.concat([buffer, chunk])
-    return buffer
+    const stream = await downloadContentFromMessage(msg, type)
+    let buf = Buffer.alloc(0)
+    for await (const c of stream) buf = Buffer.concat([buf, c])
+    return buf
   } catch {
     return null
   }
@@ -65,13 +63,12 @@ const handler = async (m, { conn, participants }) => {
     participant: '0@s.whatsapp.net'
   }
 
-  await conn.sendMessage(m.chat, { react: { text: '🗣️', key: m.key } })
-
   const users = [...new Set(participants.map(p => p.id))]
 
-  const q = m.quoted ? unwrapMessage(m.quoted.message) : unwrapMessage(m.message)
+  const text = ownText(m).replace(/^\.?n(\s|$)/i, '').trim()
 
-  const mtype = q.mtype || Object.keys(q)[0] || ''
+  const q = m.quoted ? unwrap(m.quoted.message) : null
+  const mtype = q ? Object.keys(q)[0] : null
 
   const isMedia = [
     'imageMessage',
@@ -80,106 +77,43 @@ const handler = async (m, { conn, participants }) => {
     'stickerMessage'
   ].includes(mtype)
 
-  const repliedText = m.quoted ? getMessageText(m.quoted) : ''
-  const myText = getMessageText(m)
+  await conn.sendMessage(m.chat, { react: { text: '🗣️', key: m.key } })
 
-  let content = (myText || '').trim()
-  let userText = content
+  if (isMedia && q[mtype]) {
 
-  if (/^\.?n(\s|$)/i.test(content)) {
-    userText = content.replace(/^\.?n(\s|$)/i, '').trim()
-  }
+    const detected = mtype.replace('Message', '').toLowerCase()
+    const buffer = await downloadMedia(q[mtype], detected)
 
-  const quotedText = (repliedText || '').trim()
+    if (!buffer) return
 
-  const finalCaption =
-    userText ||
-    quotedText ||
-    (q?.caption || q?.text || q?.msg?.caption || '').trim() ||
-    '🔊 Notificación'
+    const msg = { mentions: users }
 
-  try {
-
-    if (isMedia) {
-
-      let buffer = null
-
-      if (q[mtype]) {
-        const detected = mtype.replace('Message', '').toLowerCase()
-        buffer = await downloadMedia(q[mtype], detected)
-      }
-
-      if (!buffer && q.download) buffer = await q.download()
-
-      const msg = { mentions: users }
-
-      if (mtype === 'audioMessage') {
-        msg.audio = buffer
-        msg.mimetype = 'audio/mpeg'
-        msg.ptt = false
-
-        await conn.sendMessage(m.chat, msg, { quoted: fkontak })
-
-        if (userText) {
-          await conn.sendMessage(
-            m.chat,
-            { text: userText, mentions: users },
-            { quoted: fkontak }
-          )
-        }
-        return
-      }
-
-      if (mtype === 'imageMessage') {
-        msg.image = buffer
-        msg.caption = finalCaption
-      } else if (mtype === 'videoMessage') {
-        msg.video = buffer
-        msg.caption = finalCaption
-        msg.mimetype = 'video/mp4'
-      } else if (mtype === 'stickerMessage') {
-        msg.sticker = buffer
-      }
-
-      return await conn.sendMessage(m.chat, msg, { quoted: fkontak })
+    if (mtype === 'imageMessage') {
+      msg.image = buffer
+      msg.caption = text || '🔊 Notificación'
+    } else if (mtype === 'videoMessage') {
+      msg.video = buffer
+      msg.caption = text || '🔊 Notificación'
+      msg.mimetype = 'video/mp4'
+    } else if (mtype === 'stickerMessage') {
+      msg.sticker = buffer
+    } else if (mtype === 'audioMessage') {
+      msg.audio = buffer
+      msg.mimetype = 'audio/mpeg'
+      msg.ptt = false
     }
 
-    if (m.quoted && !isMedia) {
-      const newMsg = conn.cMod(
-        m.chat,
-        generateWAMessageFromContent(
-          m.chat,
-          {
-            [mtype || 'extendedTextMessage']:
-              q?.[mtype] || { text: finalCaption }
-          },
-          { quoted: fkontak, userJid: conn.user.id }
-        ),
-        finalCaption,
-        conn.user.id,
-        { mentions: users }
-      )
-
-      return await conn.relayMessage(
-        m.chat,
-        newMsg.message,
-        { messageId: newMsg.key.id }
-      )
-    }
-
-    return await conn.sendMessage(
-      m.chat,
-      { text: finalCaption, mentions: users },
-      { quoted: fkontak }
-    )
-
-  } catch {
-    return await conn.sendMessage(
-      m.chat,
-      { text: '🔊 Notificación', mentions: users },
-      { quoted: fkontak }
-    )
+    return await conn.sendMessage(m.chat, msg, { quoted: fkontak })
   }
+
+  return await conn.sendMessage(
+    m.chat,
+    {
+      text: text || '🔊 Notificación',
+      mentions: users
+    },
+    { quoted: fkontak }
+  )
 }
 
 handler.help = ['𝖭𝗈𝗍𝗂𝖿𝗒']
