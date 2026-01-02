@@ -1,52 +1,63 @@
 let handler = async (m, { conn, args }) => {
   try {
     if (!m.isGroup)
-      return conn.reply(m.chat, '⚠️ Este comando solo funciona en grupos.', m);
+      return m.reply('⚠️ Este comando solo funciona en grupos.')
 
-    // Texto después del comando
-    const text = (args.join(' ') || '').trim();
+    const text = args.join(' ').trim()
 
-    // Participantes
-    const meta = await conn.groupMetadata(m.chat);
-    const botId = conn.user?.id || conn.user?.jid;
-    const mentions = meta.participants.map(p => p.id).filter(id => id !== botId);
+    const meta = await conn.groupMetadata(m.chat)
+    const botId =
+      conn.user?.id ||
+      conn.user?.jid ||
+      conn.user?.lid
 
-    // --- Detectar mensaje citado en cualquier estructura ---
-    const quoted =
-      m.quoted?.fakeObj ||
-      m.quoted ||
-      m.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
-      m.msg?.contextInfo?.quotedMessage ||
-      null;
+    const mentions = meta.participants
+      .map(p => p.id || p.jid)
+      .filter(jid => jid && jid !== botId)
 
-    // Enviar aviso 📣
-    await conn.sendMessage(m.chat, {
-      text: '📣 *Notificación:* mensaje reenviado',
-      mentions,
-    }, { quoted: m });
+    const quoted = extractQuotedMessage(m)
 
-    // === CASO 1: Hay mensaje citado ===
+    // 📣 aviso
+    await conn.sendMessage(
+      m.chat,
+      {
+        text: '📣 *Notificación:* mensaje reenviado',
+        mentions
+      },
+      { quoted: m }
+    )
+
+    // 🔁 reenviar TODO
     if (quoted) {
-      await conn.sendMessage(m.chat, { forward: quoted }, { quoted: m });
-      if (text) await conn.sendMessage(m.chat, { text }, { quoted: m });
-      return;
+      await forwardAnyMessage(conn, m.chat, quoted)
+
+      if (text) {
+        await conn.sendMessage(
+          m.chat,
+          { text },
+          { quoted: m }
+        )
+      }
+      return
     }
 
-    // === CASO 2: Solo texto ===
+    // 📝 solo texto
     if (text) {
-      await conn.sendMessage(m.chat, { text }, { quoted: m });
-      return;
+      await conn.sendMessage(
+        m.chat,
+        { text },
+        { quoted: m }
+      )
+      return
     }
 
-    // === CASO 3: Nada ===
-    await conn.reply(m.chat, '❌ No hay nada para reenviar.', m);
+    await m.reply('❌ No hay nada para reenviar.')
 
   } catch (err) {
-    console.error('Error en .n:', err);
-    await conn.reply(m.chat, '❌ Ocurrió un error al reenviar.\n' + err.message, m);
+    console.error('Error en .n:', err)
+    await m.reply('❌ Error:\n' + err.message)
   }
-};
+}
 
-handler.command = ['n'];
-
-export default handler;
+handler.command = ['n']
+export default handler
