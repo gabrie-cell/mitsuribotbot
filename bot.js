@@ -12,6 +12,20 @@ import { initSubbots } from "./subbotManager.js"
 import config from "./config.js"
 import { startWebPanel } from './webpanel/app.js'
 
+import {
+  downloadContentFromMessage,
+  generateWAMessageFromContent,
+  prepareWAMessageMedia,
+  generateWAMessageContent
+} from '@whiskeysockets/baileys'
+
+global.wa = {
+  downloadContentFromMessage,
+  generateWAMessageFromContent,
+  prepareWAMessageMedia,
+  generateWAMessageContent
+}
+
 if (!global.WEBPANEL_STARTED) {
 global.WEBPANEL_STARTED = true
 try {
