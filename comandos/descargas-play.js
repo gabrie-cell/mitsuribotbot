@@ -1,135 +1,226 @@
-import axios from "axios"
-import yts from "yt-search"
-import { proto, generateWAMessageFromContent } from "@whiskeysockets/baileys"
+import yts from 'yt-search'
 
-const API_BASE = "https://mayapi.ooguy.com"
-const API_KEY  = "may-684934ab"
+const MAX_SECONDS = 90 * 60
+const HTTP_TIMEOUT_MS = 90 * 1000
 
-const handler = async (msg, { conn, text, usedPrefix, command }) => {
-  const chatId = msg.chat
-  const input = String(text || "").trim()
+function parseDurationToSeconds(d) {
+  if (d == null) return null
+  if (typeof d === 'number' && Number.isFinite(d)) return Math.max(0, Math.floor(d))
+  const s = String(d).trim()
+  if (!s) return null
+  if (/^\d+$/.test(s)) return Math.max(0, parseInt(s, 10))
+  const parts = s.split(':').map((x) => x.trim()).filter(Boolean)
+  if (!parts.length || parts.some((p) => !/^\d+$/.test(p))) return null
+  let sec = 0
+  for (const p of parts) sec = sec * 60 + parseInt(p, 10)
+  return Number.isFinite(sec) ? sec : null
+}
 
-  if (input.startsWith("audio|") || input.startsWith("video|")) {
-    const [type, url] = input.split("|")
+function formatErr(err, maxLen = 1500) {
+  const e = err ?? 'Error desconocido'
+  let msg = ''
 
-    await conn.sendMessage(chatId, {
-      react: { text: type === "audio" ? "🎵" : "🎬", key: msg.key }
-    })
-
+  if (e instanceof Error) msg = e.stack || `${e.name}: ${e.message}`
+  else if (typeof e === 'string') msg = e
+  else {
     try {
-      const dlType = type === "audio" ? "Mp3" : "Mp4"
-
-      const { data } = await axios.get(
-        `${API_BASE}/ytdl?url=${encodeURIComponent(url)}&type=${dlType}&apikey=${API_KEY}`
-      )
-
-      if (!data?.status || !data.result?.url)
-        throw new Error("No se pudo obtener el archivo")
-
-      if (type === "audio") {
-        await conn.sendMessage(chatId, {
-          audio: { url: data.result.url },
-          mimetype: "audio/mpeg",
-          ptt: false
-        }, { quoted: msg })
-      } else {
-        await conn.sendMessage(chatId, {
-          video: { url: data.result.url },
-          mimetype: "video/mp4"
-        }, { quoted: msg })
-      }
-
-      await conn.sendMessage(chatId, {
-        react: { text: "✅", key: msg.key }
-      })
-    } catch (e) {
-      await conn.sendMessage(chatId, {
-        text: "❌ Error al descargar"
-      }, { quoted: msg })
+      msg = JSON.stringify(e, null, 2)
+    } catch {
+      msg = String(e)
     }
-    return
   }
 
-  if (!input) {
-    return conn.sendMessage(chatId, {
-      text: `✳️ Usa:\n${usedPrefix}${command} <nombre de canción>`
-    }, { quoted: msg })
-  }
+  msg = String(msg || 'Error desconocido').trim()
+  if (msg.length > maxLen) msg = msg.slice(0, maxLen) + '\n... (recortado)'
+  return msg
+}
 
-  await conn.sendMessage(chatId, {
-    react: { text: "🕒", key: msg.key }
-  })
-
+async function fetchJson(url, timeoutMs = HTTP_TIMEOUT_MS) {
+  const ctrl = new AbortController()
+  const t = setTimeout(() => ctrl.abort(), timeoutMs)
   try {
-    const search = await yts(input)
-    if (!search?.videos?.length)
-      throw new Error("Sin resultados")
-
-    const video = search.videos[0]
-    const title = video.title
-    const author = video.author?.name || "Desconocido"
-    const duration = video.timestamp || "Desconocida"
-    const thumb = video.thumbnail
-    const url = video.url
-
-    const caption =
-`⭒ ִֶָ७ ꯭🎵˙⋆｡ - *𝚃𝚒́𝚝𝚞𝚕𝚘:* ${title}
-⭒ ִֶָ७ ꯭🎤˙⋆｡ - *𝙰𝚛𝚝𝚒𝚜𝚝𝚊:* ${author}
-⭒ ִֶָ७ ꯭🕑˙⋆｡ - *𝙳𝚞𝚛𝚊𝚌𝚒ó𝚗:* ${duration}
-
-Selecciona el formato 👇
-`
-
-    const interactiveMsg = generateWAMessageFromContent(
-      chatId,
-      proto.Message.fromObject({
-        interactiveMessage: {
-          header: {
-            hasMediaAttachment: true,
-            imageMessage: { url: thumb }
-          },
-          body: { text: caption },
-          footer: { text: "© Powered by Angel.xyz" },
-          nativeFlowMessage: {
-            buttons: [
-              {
-                name: "quick_reply",
-                buttonParamsJson: JSON.stringify({
-                  display_text: "🎵 Audio",
-                  id: `${usedPrefix}${command} audio|${url}`
-                })
-              },
-              {
-                name: "quick_reply",
-                buttonParamsJson: JSON.stringify({
-                  display_text: "🎬 Video",
-                  id: `${usedPrefix}${command} video|${url}`
-                })
-              }
-            ]
-          }
-        }
-      }),
-      {}
-    )
-
-    await conn.relayMessage(chatId, interactiveMsg.message, {
-      messageId: interactiveMsg.key.id
+    const res = await fetch(url, {
+      method: 'GET',
+      signal: ctrl.signal,
+      headers: { accept: 'application/json', 'user-agent': 'Mozilla/5.0' }
     })
-
-    await conn.sendMessage(chatId, {
-      react: { text: "✅", key: msg.key }
-    })
-
-  } catch (err) {
-    await conn.sendMessage(chatId, {
-      text: `❌ Error: ${err?.message || "Fallo interno"}`
-    }, { quoted: msg })
+    const text = await res.text().catch(() => '')
+    let data = null
+    try {
+      data = text ? JSON.parse(text) : null
+    } catch {
+      data = null
+    }
+    if (!res.ok) {
+      const msg = data?.message || data?.error || text || `HTTP ${res.status}`
+      throw new Error(`HTTP ${res.status}: ${String(msg).slice(0, 400)}`)
+    }
+    if (data == null) throw new Error('Respuesta JSON inválida')
+    return data
+  } finally {
+    clearTimeout(t)
   }
 }
 
-handler.command = ["play", "ytplay"]
-handler.help = ["play <texto>"]
-handler.tags = ["descargas"]
+async function fetchBuffer(url, timeoutMs = HTTP_TIMEOUT_MS) {
+  const ctrl = new AbortController()
+  const t = setTimeout(() => ctrl.abort(), timeoutMs)
+  try {
+    const res = await fetch(url, { signal: ctrl.signal, headers: { 'user-agent': 'Mozilla/5.0' } })
+    if (!res.ok) throw new Error(`No se pudo bajar el audio (HTTP ${res.status})`)
+    const ab = await res.arrayBuffer()
+    return Buffer.from(ab)
+  } finally {
+    clearTimeout(t)
+  }
+}
+
+function guessMimeFromUrl(fileUrl = '') {
+  let ext = ''
+  try {
+    ext = new URL(fileUrl).pathname.split('.').pop() || ''
+  } catch {
+    ext = String(fileUrl).split('.').pop() || ''
+  }
+  ext = '.' + String(ext).toLowerCase().replace(/[^a-z0-9]/g, '')
+  if (ext === '.m4a') return 'audio/mp4'
+  if (ext === '.opus') return 'audio/ogg; codecs=opus'
+  if (ext === '.webm') return 'audio/webm'
+  return 'audio/mpeg'
+}
+
+let handler = async (m, { conn, text, usedPrefix, command }) => {
+  const chatId = m?.chat || m?.key?.remoteJid
+  if (!chatId) return
+
+  if (!text) {
+    return conn.sendMessage(
+      chatId,
+      { text: `「✦」Escribe el nombre o link del video.\n> ✐ Ejemplo » *${usedPrefix + command} lovely*` },
+      { quoted: m }
+    )
+  }
+
+  await conn.sendMessage(chatId, { react: { text: '🕒', key: m.key } }).catch(() => {})
+
+  let ytUrl = text.trim()
+  let ytInfo = null
+
+  try {
+    if (!/youtu\.be|youtube\.com/i.test(ytUrl)) {
+      const search = await yts(ytUrl)
+      const first = search?.videos?.[0]
+      if (!first) {
+        await conn.sendMessage(chatId, { text: '「✦」No se encontraron resultados.' }, { quoted: m })
+        return
+      }
+      ytInfo = first
+      ytUrl = first.url
+    } else {
+      const search = await yts({ query: ytUrl, pages: 1 })
+      if (search?.videos?.length) ytInfo = search.videos[0]
+    }
+  } catch (e) {
+    await conn.sendMessage(
+      chatId,
+      { text: `「✦」Error buscando en YouTube.\n\n> 🧩 Error:\n\`\`\`\n${formatErr(e)}\n\`\`\`` },
+      { quoted: m }
+    )
+    return
+  }
+
+  const durSec =
+    parseDurationToSeconds(ytInfo?.duration?.seconds) ??
+    parseDurationToSeconds(ytInfo?.seconds) ??
+    parseDurationToSeconds(ytInfo?.duration) ??
+    parseDurationToSeconds(ytInfo?.timestamp)
+
+  if (durSec && durSec > MAX_SECONDS) {
+    await conn.sendMessage(
+      chatId,
+      { text: `「✦」Audio muy largo.\n> Máx: ${Math.floor(MAX_SECONDS / 60)} min.` },
+      { quoted: m }
+    )
+    return
+  }
+
+  const title = ytInfo?.title || 'Audio'
+  const author = ytInfo?.author?.name || ytInfo?.author || 'Desconocido'
+  const duration = ytInfo?.timestamp || 'Desconocida'
+  const thumbnail = ytInfo?.thumbnail
+
+  const caption =
+    `「✦」Enviando *${title}*\n\n` +
+    `> ❀ Canal » *${author}*\n` +
+    `> ⴵ Duración » *${duration}*\n` +
+    `> 🜸 Link » ${ytUrl}`
+
+  try {
+    if (thumbnail) await conn.sendMessage(chatId, { image: { url: thumbnail }, caption }, { quoted: m })
+    else await conn.sendMessage(chatId, { text: caption }, { quoted: m })
+  } catch {}
+
+  const apiKey = globalThis?.apikey
+  if (!apiKey) {
+    await conn.sendMessage(chatId, { text: `「✦」Falta configurar globalThis.apikey para usar la API.` }, { quoted: m })
+    return
+  }
+
+  let apiResp = null
+  try {
+    const apiUrl =
+      `https://api-adonix.ultraplus.click/download/ytaudio` +
+      `?apikey=${encodeURIComponent(String(apiKey))}` +
+      `&url=${encodeURIComponent(String(ytUrl))}`
+
+    apiResp = await fetchJson(apiUrl, HTTP_TIMEOUT_MS)
+  } catch (e) {
+    await conn.sendMessage(
+      chatId,
+      { text: `「✦」Error usando la API.\n\n> 🧩 Error:\n\`\`\`\n${formatErr(e)}\n\`\`\`` },
+      { quoted: m }
+    )
+    return
+  }
+
+  if (!apiResp?.status || !apiResp?.data?.url) {
+    await conn.sendMessage(
+      chatId,
+      { text: `「✦」La API no devolvió un link válido.\n\n> Respuesta:\n\`\`\`\n${String(JSON.stringify(apiResp, null, 2)).slice(0, 1500)}\n\`\`\`` },
+      { quoted: m }
+    )
+    return
+  }
+
+  const directUrl = String(apiResp.data.url)
+  const apiTitle = apiResp?.data?.title || title
+
+  try {
+    const audioBuffer = await fetchBuffer(directUrl, HTTP_TIMEOUT_MS)
+    const mime = guessMimeFromUrl(directUrl)
+
+    await conn.sendMessage(
+      chatId,
+      {
+        audio: audioBuffer,
+        mimetype: mime,
+        fileName: `${apiTitle}.mp3`
+      },
+      { quoted: m }
+    )
+
+    await conn.sendMessage(chatId, { react: { text: '✔️', key: m.key } }).catch(() => {})
+  } catch (e) {
+    await conn.sendMessage(
+      chatId,
+      { text: `「✦」Error descargando/enviando el audio.\n\n> 🧩 Error:\n\`\`\`\n${formatErr(e)}\n\`\`\`` },
+      { quoted: m }
+    )
+  }
+}
+
+handler.help = ['play <texto|link>']
+handler.tags = ['multimedia']
+handler.command = ['play']
 
 export default handler
