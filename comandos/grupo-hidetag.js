@@ -73,7 +73,6 @@ const handler = async (m, { conn, args, participants }) => {
   const cleanCaption = caption.replace(/^\.n\s*/i, '').trim()
 
   if (!q && isCaptionCmd) q = m.message
-
   if (!q && !textExtra) return
 
   if (q) {
@@ -122,22 +121,13 @@ const handler = async (m, { conn, args, participants }) => {
       q.extendedTextMessage?.text ||
       ''
 
-    const newMsg = conn.cMod(
+    return conn.sendMessage(
       m.chat,
-      generateWAMessageFromContent(
-        m.chat,
-        { extendedTextMessage: { text } },
-        { quoted: fkontak, userJid: conn.user.id }
-      ),
-      text,
-      conn.user.jid,
-      { mentions: users }
-    )
-
-    return conn.relayMessage(
-      m.chat,
-      newMsg.message,
-      { messageId: newMsg.key.id }
+      {
+        text,
+        mentions: users
+      },
+      { quoted: fkontak }
     )
   }
 
