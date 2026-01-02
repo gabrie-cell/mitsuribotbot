@@ -67,7 +67,6 @@ const handler = async (m, { conn, participants }) => {
 
   await conn.sendMessage(m.chat, { react: { text: '🗣️', key: m.key } })
 
-  // 🔥🔥🔥 ÚNICO CAMBIO AQUÍ 🔥🔥🔥
   const users = [...new Set(participants.map(p => p.id))]
 
   const q = m.quoted ? unwrapMessage(m.quoted) : unwrapMessage(m)
@@ -81,7 +80,7 @@ const handler = async (m, { conn, participants }) => {
   ].includes(mtype)
 
   const content = getMessageText(m).trim()
-  const userText = content.replace(/^n(\s|$)/i, '').trim()
+const userText = content.replace(/^\.?n(\s|$)/i, '').trim()
   const originalCaption = (q.msg?.caption || q.text || '').trim()
   const finalCaption = userText || originalCaption || '🔊 Notificación'
 
