@@ -42,8 +42,7 @@ const handler = async (msg, { conn, text, usedPrefix, command }) => {
         react: { text: "✅", key: msg.key }
       })
 
-    } catch (e) {
-      console.error(e)
+    } catch {
       await conn.sendMessage(chatId, {
         text: "❌ Error al descargar"
       }, { quoted: msg })
@@ -86,32 +85,64 @@ Selecciona el formato 👇
 > \`\`\`© Powered by Angel.xyz\`\`\`
 `
 
-    const buttons = [
-      {
-        buttonId: `${usedPrefix}${command} audio|${url}`,
-        buttonText: { displayText: "🎵 Audio" },
-        type: 1
-      },
-      {
-        buttonId: `${usedPrefix}${command} video|${url}`,
-        buttonText: { displayText: "🎬 Video" },
-        type: 1
-      }
-    ]
-
-    await conn.sendMessage(chatId, {
+    const interactiveContent = {
       image: { url: thumb },
       caption,
-      buttons,
-      headerType: 4
-    }, { quoted: msg })
+      interactiveMessage: {
+        body: { text: caption },
+        footer: { text: "© Powered by Angel.xyz" },
+        header: {
+          hasMediaAttachment: true,
+          imageMessage: { url: thumb }
+        },
+        nativeFlowMessage: {
+          buttons: [
+            {
+              name: "quick_reply",
+              buttonParamsJson: JSON.stringify({
+                display_text: "🎵 Audio",
+                id: `${usedPrefix}${command} audio|${url}`
+              })
+            },
+            {
+              name: "quick_reply",
+              buttonParamsJson: JSON.stringify({
+                display_text: "🎬 Video",
+                id: `${usedPrefix}${command} video|${url}`
+              })
+            }
+          ]
+        }
+      }
+    }
+
+    try {
+      await conn.sendMessage(chatId, interactiveContent, { quoted: msg })
+    } catch {
+      await conn.sendMessage(chatId, {
+        image: { url: thumb },
+        caption,
+        buttons: [
+          {
+            buttonId: `${usedPrefix}${command} audio|${url}`,
+            buttonText: { displayText: "🎵 Audio" },
+            type: 1
+          },
+          {
+            buttonId: `${usedPrefix}${command} video|${url}`,
+            buttonText: { displayText: "🎬 Video" },
+            type: 1
+          }
+        ],
+        headerType: 4
+      }, { quoted: msg })
+    }
 
     await conn.sendMessage(chatId, {
       react: { text: "✅", key: msg.key }
     })
 
   } catch (err) {
-    console.error("play error:", err)
     await conn.sendMessage(chatId, {
       text: `❌ Error: ${err?.message || "Fallo interno"}`
     }, { quoted: msg })
