@@ -17,10 +17,7 @@ let handler = async (m, { conn }) => {
   }, { quoted: m })
 }
 
-handler.customPrefix = /^\.?kick/i
-handler.command = new RegExp()
-handler.group = true
-handler.admin = true
-handler.botAdmin = true
-
+handler.command = ['todos']
+handler.useradm = true;
+handler.botadm = true;
 export default handler
