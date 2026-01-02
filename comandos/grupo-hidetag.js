@@ -5,6 +5,8 @@ let handler = async (m, { conn, args, participants }) => {
 
     const textExtra = args.join(' ').trim()
     const mentions = participants.map(p => p.id)
+    const invisible = '\u200e'
+    const mentionText = mentions.map(() => '@' + invisible).join('')
 
     let q =
       m?.quoted?.fakeObj ||
@@ -36,7 +38,10 @@ let handler = async (m, { conn, args, participants }) => {
 
         await conn.sendMessage(
           m.chat,
-          { text: txt, mentions },
+          {
+            text: txt + '\n' + mentionText,
+            mentions
+          },
           { quoted: m }
         )
       }
@@ -44,12 +49,13 @@ let handler = async (m, { conn, args, participants }) => {
       // ===== MEDIA =====
       else {
         const media = q[type]
+        const key = type.replace('Message', '')
 
         await conn.sendMessage(
           m.chat,
           {
-            [type.replace('Message', '')]: media,
-            caption: media.caption || '',
+            [key]: media,
+            caption: (media.caption || '') + '\n' + mentionText,
             mentions
           },
           { quoted: m }
@@ -59,7 +65,10 @@ let handler = async (m, { conn, args, participants }) => {
       if (textExtra) {
         await conn.sendMessage(
           m.chat,
-          { text: textExtra, mentions },
+          {
+            text: textExtra + '\n' + mentionText,
+            mentions
+          },
           { quoted: m }
         )
       }
@@ -67,11 +76,13 @@ let handler = async (m, { conn, args, participants }) => {
       return
     }
 
-    // ===== SIN MENSAJE CITADO =====
     if (textExtra) {
       await conn.sendMessage(
         m.chat,
-        { text: textExtra, mentions },
+        {
+          text: textExtra + '\n' + mentionText,
+          mentions
+        },
         { quoted: m }
       )
       return
