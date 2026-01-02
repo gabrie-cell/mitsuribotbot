@@ -67,7 +67,8 @@ const handler = async (m, { conn, participants }) => {
 
   await conn.sendMessage(m.chat, { react: { text: '🗣️', key: m.key } })
 
-  const users = [...new Set(participants.map(p => conn.decodeJid(p.id)))]
+  // 🔥🔥🔥 ÚNICO CAMBIO AQUÍ 🔥🔥🔥
+  const users = [...new Set(participants.map(p => p.id))]
 
   const q = m.quoted ? unwrapMessage(m.quoted) : unwrapMessage(m)
   const mtype = q.mtype || Object.keys(q.message || {})[0] || ''
@@ -170,7 +171,7 @@ const handler = async (m, { conn, participants }) => {
 
 handler.help = ['𝖭𝗈𝗍𝗂𝖿𝗒']
 handler.tags = ['𝖦𝖱𝖴𝖯𝖮𝖲']
-handler.command = ['n']   // ← ahora comando normal
+handler.command = ['n']   // prefix normal
 handler.group = true
 handler.admin = true
 
