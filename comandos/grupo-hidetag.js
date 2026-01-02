@@ -65,9 +65,6 @@ const handler = async (m, { conn, participants }) => {
     participant: '0@s.whatsapp.net'
   }
 
-  const content = getMessageText(m).trim()
-  if (!/^\.?n(\s|$)/i.test(content.trim())) return;
-
   await conn.sendMessage(m.chat, { react: { text: '🗣️', key: m.key } })
 
   const users = [...new Set(participants.map(p => conn.decodeJid(p.id)))]
@@ -82,7 +79,8 @@ const handler = async (m, { conn, participants }) => {
     'stickerMessage'
   ].includes(mtype)
 
-  const userText = content.replace(/^\.?n(\s|$)/i, '').trim()
+  const content = getMessageText(m).trim()
+  const userText = content.replace(/^n(\s|$)/i, '').trim()
   const originalCaption = (q.msg?.caption || q.text || '').trim()
   const finalCaption = userText || originalCaption || '🔊 Notificación'
 
@@ -172,8 +170,7 @@ const handler = async (m, { conn, participants }) => {
 
 handler.help = ['𝖭𝗈𝗍𝗂𝖿𝗒']
 handler.tags = ['𝖦𝖱𝖴𝖯𝖮𝖲']
-handler.customPrefix = /^\.?n(\s|$)/i;
-handler.command = new RegExp()
+handler.command = ['n']   // ← ahora comando normal
 handler.group = true
 handler.admin = true
 
