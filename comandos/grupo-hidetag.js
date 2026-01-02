@@ -32,6 +32,15 @@ function extractQuotedMessage(m) {
   return msg
 }
 
+// 🔥 FIX CLAVE PARA TEXTO CITADO
+function normalizeQuoted(q) {
+  if (!q) return null
+  if (typeof q === 'string') {
+    return { conversation: q }
+  }
+  return q
+}
+
 async function downloadMedia(msgContent, type) {
   try {
     const stream = await downloadContentFromMessage(msgContent, type)
@@ -67,7 +76,9 @@ const handler = async (m, { conn, args, participants }) => {
 
     await conn.sendMessage(m.chat, { react: { text: '🗣️', key: m.key } })
 
-    const q = extractQuotedMessage(m)
+    let q = extractQuotedMessage(m)
+    q = normalizeQuoted(q)
+
     if (!q && !textExtra) {
       return m.reply('❌ No hay nada para reenviar.')
     }
@@ -82,6 +93,7 @@ const handler = async (m, { conn, args, participants }) => {
         'stickerMessage'
       ].includes(mtype)
 
+      // ===== MEDIA =====
       if (isMedia) {
         let buffer = null
         const mediaType = mtype.replace('Message', '')
@@ -96,31 +108,29 @@ const handler = async (m, { conn, args, participants }) => {
           msg.audio = buffer
           msg.mimetype = 'audio/mpeg'
           msg.ptt = false
-
-          await conn.sendMessage(m.chat, msg, { quoted: fkontak })
+          return await conn.sendMessage(m.chat, msg, { quoted: fkontak })
         }
 
         if (mtype === 'imageMessage') {
           msg.image = buffer
           msg.caption = textExtra || q.imageMessage?.caption || ''
-          await conn.sendMessage(m.chat, msg, { quoted: fkontak })
+          return await conn.sendMessage(m.chat, msg, { quoted: fkontak })
         }
 
         if (mtype === 'videoMessage') {
           msg.video = buffer
           msg.caption = textExtra || q.videoMessage?.caption || ''
           msg.mimetype = 'video/mp4'
-          await conn.sendMessage(m.chat, msg, { quoted: fkontak })
+          return await conn.sendMessage(m.chat, msg, { quoted: fkontak })
         }
 
         if (mtype === 'stickerMessage') {
           msg.sticker = buffer
-          await conn.sendMessage(m.chat, msg, { quoted: fkontak })
+          return await conn.sendMessage(m.chat, msg, { quoted: fkontak })
         }
-
-        return
       }
 
+      // ===== TEXTO =====
       const text =
         q.conversation ||
         q.extendedTextMessage?.text ||
@@ -132,9 +142,7 @@ const handler = async (m, { conn, args, participants }) => {
         generateWAMessageFromContent(
           m.chat,
           {
-            extendedTextMessage: {
-              text
-            }
+            extendedTextMessage: { text }
           },
           { quoted: fkontak, userJid: conn.user.id }
         ),
@@ -150,6 +158,7 @@ const handler = async (m, { conn, args, participants }) => {
       )
     }
 
+    // ===== SOLO TEXTO (.n hola) =====
     return await conn.sendMessage(
       m.chat,
       { text: textExtra, mentions: users },
