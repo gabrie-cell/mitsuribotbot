@@ -1,65 +1,76 @@
-const handler = async (m, { conn }) => {
-  const chat = m.chat
+import { jidNormalizedUser } from '@whiskeysockets/baileys'
 
-  // reacción
+function normalizeJid(jid = '') {
+  try {
+    return jid ? jidNormalizedUser(jid) : ''
+  } catch {
+    return String(jid || '')
+  }
+}
+
+const handler = async (m, { conn, from }) => {
+  const chat = normalizeJid(from)
+
   await conn.sendMessage(chat, {
-    react: { text: '🔗', key: m.key }
+    react: { text: "🔗", key: m.key }
   })
 
   try {
+    const safeFetch = async (url, timeout = 5000) => {
+      const controller = new AbortController()
+      const id = setTimeout(() => controller.abort(), timeout)
+      try {
+        const res = await fetch(url, { signal: controller.signal })
+        return res.ok ? Buffer.from(await res.arrayBuffer()) : null
+      } catch {
+        return null
+      } finally {
+        clearTimeout(id)
+      }
+    }
+
     const [meta, code] = await Promise.all([
       conn.groupMetadata(chat),
       conn.groupInviteCode(chat).catch(() => null)
     ])
 
-    if (!code) throw new Error('Sin enlace')
+    const groupName = meta?.subject || "Grupo"
+    const link = code
+      ? `https://chat.whatsapp.com/${code}`
+      : "Sin enlace disponible"
 
-    const groupName = meta.subject || 'Grupo'
-    const link = `https://chat.whatsapp.com/${code}`
+    const fallback = "https://files.catbox.moe/xr2m6u.jpg"
+    let ppBuffer = null
 
-    // obtener foto del grupo
-    let img = null
     try {
-      const url = await conn.profilePictureUrl(chat, 'image')
-      img = await fetch(url).then(r => r.buffer())
-    } catch {
-      img = await fetch('https://files.catbox.moe/xr2m6u.jpg').then(r => r.buffer())
+      const url = await conn.profilePictureUrl(chat, "image").catch(() => null)
+      if (url && url !== "not-authorized" && url !== "not-exist") {
+        ppBuffer = await safeFetch(url, 6000)
+      }
+    } catch {}
+
+    if (!ppBuffer) {
+      ppBuffer = await safeFetch(fallback)
     }
 
     await conn.sendMessage(
       chat,
       {
-        image: img,
-        caption:
-          `*${groupName}*\n\n` +
-          `🔗 *Enlace del grupo*\n` +
-          `${link}\n\n` +
-          `📋 Mantén presionado para copiar`,
-        contextInfo: {
-          externalAdReply: {
-            title: '🔗 Enlace del grupo',
-            body: 'Toca o mantén presionado para copiar',
-            thumbnail: img,
-            sourceUrl: link,
-            mediaType: 1,
-            renderLargerThumbnail: true
-          }
-        }
+        image: ppBuffer,
+        caption: `*${groupName}*\n${link}`
       },
       { quoted: m }
     )
 
-  } catch {
+  } catch (err) {
     await conn.sendMessage(
       chat,
-      { text: '❌ No se pudo generar el enlace del grupo.' },
+      { text: "❌ Ocurrió un error al generar el enlace." },
       { quoted: m }
     )
   }
 }
 
 handler.command = ['link']
-handler.useradm = true
 handler.botadm = true
-
 export default handler
