@@ -8,184 +8,178 @@ fetch('https://files.catbox.moe/tx6prq.jpg')
 .catch(() => null)
 
 function unwrapMessage(m = {}) {
-let n = m
-while (
-n?.viewOnceMessage?.message ||
-n?.viewOnceMessageV2?.message ||
-n?.viewOnceMessageV2Extension?.message ||
-n?.ephemeralMessage?.message
-) {
-n =
-n.viewOnceMessage?.message ||
-n.viewOnceMessageV2?.message ||
-n.viewOnceMessageV2Extension?.message ||
-n.ephemeralMessage?.message
-}
-return n
+  let n = m
+  while (
+    n?.viewOnceMessage?.message ||
+    n?.viewOnceMessageV2?.message ||
+    n?.viewOnceMessageV2Extension?.message ||
+    n?.ephemeralMessage?.message
+  ) {
+    n =
+      n.viewOnceMessage?.message ||
+      n.viewOnceMessageV2?.message ||
+      n.viewOnceMessageV2Extension?.message ||
+      n.ephemeralMessage?.message
+  }
+  return n
 }
 
 function getMessageText(m) {
-const msg = unwrapMessage(m.message) || {}
-return (
-m.text ||
-m.msg?.caption ||
-msg?.extendedTextMessage?.text ||
-msg?.conversation ||
-''
-)
+  const msg = unwrapMessage(m.message) || {}
+  return (
+    m.text ||
+    m.msg?.caption ||
+    msg?.extendedTextMessage?.text ||
+    msg?.conversation ||
+    ''
+  )
 }
 
 async function downloadMedia(msgContent, type) {
-try {
-const stream = await downloadContentFromMessage(msgContent, type)
-let buffer = Buffer.alloc(0)
-for await (const chunk of stream) buffer = Buffer.concat([buffer, chunk])
-return buffer
-} catch {
-return null
-}
+  try {
+    const stream = await downloadContentFromMessage(msgContent, type)
+    let buffer = Buffer.alloc(0)
+    for await (const chunk of stream) buffer = Buffer.concat([buffer, chunk])
+    return buffer
+  } catch {
+    return null
+  }
 }
 
 const handler = async (m, { conn, participants }) => {
 
-if (!m.isGroup || m.key.fromMe) return
+  if (!m.isGroup || m.key.fromMe) return
 
-const fkontak = {
-key: {
-remoteJid: m.chat,
-fromMe: false,
-id: 'Angel'
-},
-message: {
-locationMessage: {
-name: '𝖧𝗈𝗅𝖺, 𝖲𝗈𝗒 𝖠𝗇𝗀𝖾𝗅 𝖡𝗈𝗍',
-jpegThumbnail: thumb
-}
-},
-participant: '0@s.whatsapp.net'
-}
+  const fkontak = {
+    key: {
+      remoteJid: m.chat,
+      fromMe: false,
+      id: 'Angel'
+    },
+    message: {
+      locationMessage: {
+        name: '𝖧𝗈𝗅𝖺, 𝖲𝗈𝗒 𝖠𝗇𝗀𝖾𝗅 𝖡𝗈𝗍',
+        jpegThumbnail: thumb
+      }
+    },
+    participant: '0@s.whatsapp.net'
+  }
 
-await conn.sendMessage(m.chat, { react: { text: '🗣️', key: m.key } })
+  await conn.sendMessage(m.chat, { react: { text: '🗣️', key: m.key } })
 
-const users = [...new Set(participants.map(p => p.id))]
+  const users = [...new Set(participants.map(p => p.id))]
 
-const q = m.quoted ? unwrapMessage(m.quoted.message) : unwrapMessage(m.message)
+  const q = m.quoted ? unwrapMessage(m.quoted.message) : unwrapMessage(m.message)
 
-const mtype = q.mtype || Object.keys(q.message || {})[0] || ''
+  const mtype = q.mtype || Object.keys(q)[0] || ''
 
-const isMedia = [
-'imageMessage',
-'videoMessage',
-'audioMessage',
-'stickerMessage'
-].includes(mtype)
+  const isMedia = [
+    'imageMessage',
+    'videoMessage',
+    'audioMessage',
+    'stickerMessage'
+  ].includes(mtype)
 
-const repliedText = m.quoted ? getMessageText(m.quoted) : ''
-const myText = getMessageText(m)
+  const repliedText = m.quoted ? getMessageText(m.quoted) : ''
+  const myText = getMessageText(m)
 
-let content = (myText || '').trim()
+  let content = (myText || '').trim()
+  let userText = content
 
-// quitar el comando .n solo si está en TU mensaje
-let userText = content
-if (/^\.?n(\s|$)/i.test(content)) {
-  userText = content.replace(/^\.?n(\s|$)/i, '').trim()
-}
+  if (/^\.?n(\s|$)/i.test(content)) {
+    userText = content.replace(/^\.?n(\s|$)/i, '').trim()
+  }
 
-// texto del mensaje citado (si existe)
-const quotedText = (repliedText || '').trim()
+  const quotedText = (repliedText || '').trim()
 
-// prioridad:
-// 1. texto que tú escribes
-// 2. texto del mensaje citado
-// 3. caption del mensaje citado
-const finalCaption =
-  userText ||
-  quotedText ||
-  (q?.caption || q?.text || q?.msg?.caption || '').trim() ||
-  '🔊 Notificación'
+  const finalCaption =
+    userText ||
+    quotedText ||
+    (q?.caption || q?.text || q?.msg?.caption || '').trim() ||
+    '🔊 Notificación'
 
-try {
+  try {
 
-if (isMedia) {  
+    if (isMedia) {
 
-  let buffer = null  
+      let buffer = null
 
-  if (q[mtype]) {  
-    const detected = mtype.replace('Message', '').toLowerCase()  
-    buffer = await downloadMedia(q[mtype], detected)  
-  }  
+      if (q[mtype]) {
+        const detected = mtype.replace('Message', '').toLowerCase()
+        buffer = await downloadMedia(q[mtype], detected)
+      }
 
-  if (!buffer && q.download) buffer = await q.download()  
+      if (!buffer && q.download) buffer = await q.download()
 
-  const msg = { mentions: users }  
+      const msg = { mentions: users }
 
-  if (mtype === 'audioMessage') {  
-    msg.audio = buffer  
-    msg.mimetype = 'audio/mpeg'  
-    msg.ptt = false  
+      if (mtype === 'audioMessage') {
+        msg.audio = buffer
+        msg.mimetype = 'audio/mpeg'
+        msg.ptt = false
 
-    await conn.sendMessage(m.chat, msg, { quoted: fkontak })  
+        await conn.sendMessage(m.chat, msg, { quoted: fkontak })
 
-    if (userText) {  
-      await conn.sendMessage(  
-        m.chat,  
-        { text: userText, mentions: users },  
-        { quoted: fkontak }  
-      )  
-    }  
-    return  
-  }  
+        if (userText) {
+          await conn.sendMessage(
+            m.chat,
+            { text: userText, mentions: users },
+            { quoted: fkontak }
+          )
+        }
+        return
+      }
 
-  if (mtype === 'imageMessage') {  
-    msg.image = buffer  
-    msg.caption = finalCaption  
-  } else if (mtype === 'videoMessage') {  
-    msg.video = buffer  
-    msg.caption = finalCaption  
-    msg.mimetype = 'video/mp4'  
-  } else if (mtype === 'stickerMessage') {  
-    msg.sticker = buffer  
-  }  
+      if (mtype === 'imageMessage') {
+        msg.image = buffer
+        msg.caption = finalCaption
+      } else if (mtype === 'videoMessage') {
+        msg.video = buffer
+        msg.caption = finalCaption
+        msg.mimetype = 'video/mp4'
+      } else if (mtype === 'stickerMessage') {
+        msg.sticker = buffer
+      }
 
-  return await conn.sendMessage(m.chat, msg, { quoted: fkontak })  
-}  
+      return await conn.sendMessage(m.chat, msg, { quoted: fkontak })
+    }
 
-if (m.quoted && !isMedia) {  
-  const newMsg = conn.cMod(  
-    m.chat,  
-    generateWAMessageFromContent(  
-      m.chat,  
-      {  
-        [mtype || 'extendedTextMessage']:  
-          q?.message?.[mtype] || { text: finalCaption }  
-      },  
-      { quoted: fkontak, userJid: conn.user.id }  
-    ),  
-    finalCaption,  
-    conn.user.id,  
-    { mentions: users }  
-  )  
+    if (m.quoted && !isMedia) {
+      const newMsg = conn.cMod(
+        m.chat,
+        generateWAMessageFromContent(
+          m.chat,
+          {
+            [mtype || 'extendedTextMessage']:
+              q?.[mtype] || { text: finalCaption }
+          },
+          { quoted: fkontak, userJid: conn.user.id }
+        ),
+        finalCaption,
+        conn.user.id,
+        { mentions: users }
+      )
 
-  return await conn.relayMessage(  
-    m.chat,  
-    newMsg.message,  
-    { messageId: newMsg.key.id }  
-  )  
-}  
+      return await conn.relayMessage(
+        m.chat,
+        newMsg.message,
+        { messageId: newMsg.key.id }
+      )
+    }
 
-return await conn.sendMessage(  
-  m.chat,  
-  { text: finalCaption, mentions: users },  
-  { quoted: fkontak }  
-)
+    return await conn.sendMessage(
+      m.chat,
+      { text: finalCaption, mentions: users },
+      { quoted: fkontak }
+    )
 
-} catch {
-return await conn.sendMessage(
-m.chat,
-{ text: '🔊 Notificación', mentions: users },
-{ quoted: fkontak }
-)
-}
+  } catch {
+    return await conn.sendMessage(
+      m.chat,
+      { text: '🔊 Notificación', mentions: users },
+      { quoted: fkontak }
+    )
+  }
 }
 
 handler.help = ['𝖭𝗈𝗍𝗂𝖿𝗒']
