@@ -1,6 +1,6 @@
-const handler = async (m, { conn, args, participants }) => {
-  let chat = global.db.data.chats[m.chat]
-  let emoji = chat?.emojiTag || '┊»'
+const handler = async (m, { conn, participants }) => {
+  let chat = global.db?.data?.chats?.[m.chat] || {}
+  let emoji = chat.emojiTag || '┊»'
 
   const countryFlags = {
     '1':'🇺🇸','7':'🇷🇺','20':'🇪🇬','27':'🇿🇦','30':'🇬🇷','31':'🇳🇱','32':'🇧🇪','33':'🇫🇷','34':'🇪🇸','36':'🇭🇺','39':'🇮🇹',
