@@ -1,19 +1,48 @@
 import fetch from 'node-fetch'
 
-async function handler(m, { conn }) {
-  let chat = m.chat
-  let code = await conn.groupInviteCode(chat)
-  let link = 'https://chat.whatsapp.com/' + code
-
-  let thumb = null
+const safeFetch = async (url, timeout = 5000) => {
+  const controller = new AbortController()
+  const id = setTimeout(() => controller.abort(), timeout)
   try {
-    let ppUrl = await conn.profilePictureUrl(chat, 'image')
-    let res = await fetch(ppUrl)
-    thumb = Buffer.from(await res.arrayBuffer())
+    const res = await fetch(url, { signal: controller.signal })
+    return res.ok ? Buffer.from(await res.arrayBuffer()) : null
   } catch {
-    thumb = null
+    return null
+  } finally {
+    clearTimeout(id)
+  }
+}
+
+async function handler(m, { conn }) {
+  const chat = m.chat
+
+  // Reacción rápida
+  await conn.sendMessage(chat, {
+    react: { text: '🔗', key: m.key }
+  })
+
+  // Obtener enlace
+  const code = await conn.groupInviteCode(chat).catch(() => null)
+  const link = code
+    ? `https://chat.whatsapp.com/${code}`
+    : 'Sin enlace disponible'
+
+  // Obtener imagen del grupo
+  const fallback = 'https://files.catbox.moe/xr2m6u.jpg'
+  let thumb = null
+
+  try {
+    const ppUrl = await conn.profilePictureUrl(chat, 'image').catch(() => null)
+    if (ppUrl && ppUrl !== 'not-authorized' && ppUrl !== 'not-exist') {
+      thumb = await safeFetch(ppUrl, 6000)
+    }
+  } catch {}
+
+  if (!thumb) {
+    thumb = await safeFetch(fallback)
   }
 
+  // Enviar mensaje con preview
   await conn.sendMessage(chat, {
     text: link,
     contextInfo: {
