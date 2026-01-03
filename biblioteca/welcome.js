@@ -1,7 +1,6 @@
 import config from '../config.js'
 import { jidNormalizedUser } from '@whiskeysockets/baileys'
 import { isWelcomeEnabled, isBotEnabled, getWelcomeMessage, getByeMessage } from './settings.js'
-import { getBotVisual } from '../subbotManager.js'
 
 function renderTemplate(tpl, vars) {
   const safe = (v) => (v === null || v === undefined ? '' : String(v))
