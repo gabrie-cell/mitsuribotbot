@@ -526,8 +526,6 @@ export async function handleMessage(sock, msg) {
     const handler = commands.get(cmd)
     if (!handler) return
 
-    if (isRateLimited(sock, sender, cmd)) return
-
     const needsGroupMeta = isGroup && (shouldRequireUserAdmin(handler) || shouldRequireBotAdmin(handler))
     const baseCtx = await buildCtx(sock, msg, { needGroupMeta: needsGroupMeta })
 
