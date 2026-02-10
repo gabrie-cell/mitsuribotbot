@@ -69,7 +69,6 @@ function getCommandFiles(dir) {
 
   for (const file of list) {
     const fullPath = `${dir}/${file.name}`
-
     if (file.isDirectory()) {
       results = results.concat(getCommandFiles(fullPath))
     } else if (file.isFile() && file.name.endsWith('.js')) {
@@ -80,7 +79,6 @@ function getCommandFiles(dir) {
 }
 
 function unwrapMessageContainer(msg) {
-  
   let m = msg?.message || {}
   const maxDepth = 6
   for (let i = 0; i < maxDepth; i++) {
@@ -130,8 +128,8 @@ function cleanupHandled() {
   }
 }
 
-function sockKey(sock) {
-  return sock?.isSubBot ? String(sock?.subbotId || 'sub') : 'main'
+function sockKey() {
+  return 'main'
 }
 
 function isDuplicate(sock, msg) {
@@ -168,9 +166,7 @@ async function loadCommands() {
       const handler = mod?.default
       if (typeof handler !== 'function') continue
 
-      const folder = filePath
-        .replace(baseDir + '/', '')
-        .split('/')[0]
+      const folder = filePath.replace(baseDir + '/', '').split('/')[0]
 
       handler.__file = filePath
       handler.__category = handler.tags?.[0] || folder || 'other'
@@ -188,10 +184,7 @@ async function loadCommands() {
         }
       }
     } catch (err) {
-      console.error(
-        chalk.red(`Error cargando comando ${filePath}`),
-        err
-      )
+      console.error(chalk.red(`Error cargando comando ${filePath}`), err)
     }
   }
 
@@ -218,11 +211,10 @@ async function ensureCommandsLoaded() {
   return _loadingPromise
 }
 
-function getPrefixFor(sock) {
+function getPrefixFor() {
   const fallback = globalThis?.prefijo || config?.prefijo || config?.PREFIX || '.'
   try {
-    const subbotId = sock?.isSubBot ? String(sock?.subbotId || '').trim() : ''
-    const stored = getCommandPrefix(subbotId)
+    const stored = getCommandPrefix('')
     return stored || fallback
   } catch {
     return fallback
@@ -271,44 +263,13 @@ function deny(sock, from, msg, text) {
     .catch(() => sock.sendMessage(from, { text: t }).catch(() => {}))
 }
 
-function shorten(s, max = 180) {
-  const t = safeStr(s).replace(/\s+/g, ' ').trim()
-  if (!t) return ''
-  return t.length > max ? t.slice(0, max) + '…' : t
-}
-
-function logMsg(meta) {
-  const { id, from, sender, pushName, isGroup, type, text, parsed, decision } = meta
-  const ts = new Date().toISOString()
-  const where = isGroup ? 'GROUP' : 'DM'
-  const pfx =
-    safeStr(meta?.usedPrefix || meta?.prefix || '') ||
-    (globalThis?.prefijo || config?.prefijo || config?.PREFIX || '.')
-  const cmdInfo = parsed ? `CMD=${pfx}${parsed.cmd} ARGS=${parsed.args?.length || 0}` : 'NO_CMD'
-
-  console.log(
-    chalk.gray(
-      `\n[MSG ${ts}] ${where} | id=${safeStr(id)} | type=${safeStr(type)} | quoted=${
-        hasQuoted(meta.rawMsg) ? 'yes' : 'no'
-      }`
-    )
-  )
-  console.log(chalk.gray(`  From:   ${safeStr(from)}`))
-  console.log(chalk.gray(`  Sender: ${safeStr(sender)}${pushName ? ` (${pushName})` : ''}`))
-  if (text) console.log(chalk.gray(`  Text:   ${shorten(text)}`))
-  console.log(chalk.gray(`  Parse:  ${cmdInfo}`))
-  if (decision) console.log(chalk.gray(`  Action: ${decision}`))
-}
-
 async function buildCtx(sock, msg, { needGroupMeta = true } = {}) {
   const from = getFrom(msg)
   const senderRaw = getSender(msg)
   const sender = normalizeJid(senderRaw)
   const isGroup = isGroupJid(from)
   const text = getMessageText(msg)
-
-  const subbotId = sock?.isSubBot ? String(sock?.subbotId || '').trim() : ''
-  const usedPrefix = getPrefixFor(sock)
+  const usedPrefix = getPrefixFor()
 
   const extra = {
     conn: sock,
@@ -322,20 +283,16 @@ async function buildCtx(sock, msg, { needGroupMeta = true } = {}) {
     usedPrefix,
     args: [],
     command: '',
-    isSubBot: Boolean(sock?.isSubBot),
-    subbotOwner: sock?.subbotOwner || '',
     groupMetadata: null,
     participants: [],
     botIsAdmin: false,
     userIsAdmin: false,
-    isOwner: false,
-    subbotId
+    isOwner: false
   }
 
   const ownerList = Array.isArray(config?.owner) ? config.owner : []
   const ownerSet = new Set(ownerList.map((x) => normalizeJid(x)))
-  const senderNorm = normalizeJid(sender)
-  extra.isOwner = ownerSet.has(senderNorm)
+  extra.isOwner = ownerSet.has(normalizeJid(sender))
 
   if (isGroup && needGroupMeta) {
     const cacheKey = `${sockKey(sock)}:${from}`
@@ -344,28 +301,27 @@ async function buildCtx(sock, msg, { needGroupMeta = true } = {}) {
       extra.groupMetadata = cached.meta
       extra.participants = cached.participants
       extra.botIsAdmin = cached.botIsAdmin
-      extra.userIsAdmin = cached.userIsAdminForSender(senderNorm)
+      extra.userIsAdmin = cached.userIsAdminForSender(sender)
     } else {
       try {
         const meta = await Promise.race([
           sock.groupMetadata(from),
-          new Promise((_, rej) => setTimeout(() => rej(new Error('groupMetadata timeout')), 8000))
+          new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 8000))
         ])
+
         const participants = Array.isArray(meta?.participants) ? meta.participants : []
 
-        const botRaw1 = sock?.user?.id || ''
-        const botRaw2 = sock?.user?.jid || ''
-        const botRaw3 = sock?.user?.lid || ''
-
         const botCandidates = new Set(
-          [botRaw1, botRaw2, botRaw3]
+          [sock?.user?.id, sock?.user?.jid, sock?.user?.lid]
             .filter(Boolean)
             .flatMap((j) => [j, stripDevice(j)])
             .map((j) => normalizeJid(j))
-            .filter(Boolean)
         )
 
-        const me = participants.find((p) => botCandidates.has(normalizeJid(p?.jid || p?.id || '')))
+        const me = participants.find((p) =>
+          botCandidates.has(normalizeJid(p?.jid || p?.id || ''))
+        )
+
         const botIsAdmin = Boolean(me?.admin)
 
         const adminByJid = new Map()
@@ -388,7 +344,7 @@ async function buildCtx(sock, msg, { needGroupMeta = true } = {}) {
         extra.groupMetadata = meta
         extra.participants = participants
         extra.botIsAdmin = botIsAdmin
-        extra.userIsAdmin = cacheEntry.userIsAdminForSender(senderNorm)
+        extra.userIsAdmin = cacheEntry.userIsAdminForSender(sender)
       } catch {
         extra.groupMetadata = null
         extra.participants = []
@@ -403,11 +359,7 @@ async function buildCtx(sock, msg, { needGroupMeta = true } = {}) {
 
 async function runCommand(handler, ctx, baseCtx) {
   const { sock, msg, from, sender, text, cmd, args, isGroup, usedPrefix } = ctx
-
-  const dsock = sock
-
   const fullText = safeStr(text)
-  const argText = Array.isArray(args) ? args.join(' ').trim() : ''
   const mentionedJid = getMentionedJid(msg)
 
   const m = Object.assign({}, msg, {
@@ -419,67 +371,35 @@ async function runCommand(handler, ctx, baseCtx) {
     body: fullText,
     args: args || [],
     command: cmd,
-    usedPrefix: usedPrefix || getPrefixFor(sock),
+    usedPrefix,
     reply: async (t = '', opts = {}) => {
-      const raw = safeStr(t)
-      const out = raw
-      if (!safeStr(out).trim()) return
+      const out = safeStr(t)
+      if (!out.trim()) return
       try {
-        return await dsock.sendMessage(from, { text: out, ...opts }, { quoted: msg })
+        return await sock.sendMessage(from, { text: out, ...opts }, { quoted: msg })
       } catch {
         try {
-          return await dsock.sendMessage(from, { text: out, ...opts })
+          return await sock.sendMessage(from, { text: out, ...opts })
         } catch {}
       }
     }
   })
 
-  const base = baseCtx || (await buildCtx(sock, msg, { needGroupMeta: true }))
-
-  const extra = {
-    conn: dsock,
-    sock: dsock,
-    args: args || [],
-    command: cmd,
-    text: argText,
-    fullText,
-    body: fullText,
-    usedPrefix: usedPrefix || getPrefixFor(sock),
-    isGroup,
-    from,
-    sender,
-    chat: from,
-    isSubBot: base.isSubBot,
-    subbotOwner: base.subbotOwner,
-    isOwner: base.isOwner,
-    groupMetadata: base.groupMetadata,
-    participants: base.participants,
-    botIsAdmin: base.botIsAdmin,
-    userIsAdmin: base.userIsAdmin,
-    subbotId: base.subbotId
-  }
-
-  return await handler(m, extra)
+  return handler(m, baseCtx)
 }
 
 function parseCommand(text = '', prefix = '.') {
   const t = safeStr(text).trim()
-  if (!t) return null
   if (!t.startsWith(prefix)) return null
-
   const body = t.slice(prefix.length).trim()
   if (!body) return null
-
   const parts = body.split(/\s+/)
-  const cmd = String(parts.shift() || '').toLowerCase()
-  const args = parts
-  return { cmd, args, raw: t }
+  return { cmd: parts.shift().toLowerCase(), args: parts }
 }
 
 export async function handleMessage(sock, msg) {
   try {
-    if (!msg) return
-    if (msg?.key?.fromMe) return
+    if (!msg || msg?.key?.fromMe) return
 
     cleanupHandled()
     if (isDuplicate(sock, msg)) return
@@ -487,70 +407,70 @@ export async function handleMessage(sock, msg) {
     const from = getFrom(msg)
     if (!from) return
 
-    const senderRaw = getSender(msg)
-    const sender = normalizeJid(senderRaw)
+    const sender = normalizeJid(getSender(msg))
     const isGroup = isGroupJid(from)
 
     if (isGroup) {
       try {
         const pk = getPrimaryKey(from)
-        if (pk) {
-          const myKey = getSessionKey(sock)
-          if (pk !== myKey) return
-        }
+        if (pk && pk !== getSessionKey(sock)) return
       } catch {}
     }
+
     const text = getMessageText(msg)
     const type = getMessageType(msg)
-
-    const usedPrefix = getPrefixFor(sock)
+    const usedPrefix = getPrefixFor()
     const parsed = parseCommand(text, usedPrefix)
     if (!parsed) return
 
-    // ⚡ Loguear cada mensaje en consola (printMessage) es MUY costoso en grupos grandes.
-    // Por default, solo imprimimos comandos.
-    printMessage({ msg, conn: sock, from, sender, isGroup, type, text }).catch(() => {})
+    if (!isGroup) {
+      printMessage({ msg, conn: sock, from, sender, isGroup, type, text }).catch(() => {})
+    }
 
-    const { cmd, args } = parsed
-
-    const subbotId = sock?.isSubBot ? String(sock?.subbotId || '').trim() : ''
-    const allowWhenBotOff = new Set(['unbanchat'])
-
-    try {
-      const enabled = await isBotEnabled(from, subbotId)
-      if (enabled === false && !allowWhenBotOff.has(cmd)) return
-    } catch {}
+    const enabled = await isBotEnabled(from)
+    if (enabled === false && parsed.cmd !== 'unbanchat') return
 
     await ensureCommandsLoaded()
 
-    const handler = commands.get(cmd)
+    const handler = commands.get(parsed.cmd)
     if (!handler) return
 
-    const needsGroupMeta = isGroup && (shouldRequireUserAdmin(handler) || shouldRequireBotAdmin(handler))
+    const needsGroupMeta =
+      isGroup && (shouldRequireUserAdmin(handler) || shouldRequireBotAdmin(handler))
+
     const baseCtx = await buildCtx(sock, msg, { needGroupMeta: needsGroupMeta })
 
     if (shouldRequireOwner(handler) && !baseCtx.isOwner) {
-      await deny(sock, from, msg, '「✦」Solo los *owners* (config.js) pueden usar este comando.')
+      await deny(sock, from, msg, '「✦」Solo los owners pueden usar este comando.')
       return
     }
 
     if (isGroup) {
-      if (shouldRequireUserAdmin(handler) && !baseCtx.isOwner && !baseCtx.userIsAdmin) {
-        await deny(sock, from, msg, '「✦」Solo *administradores* del grupo pueden usar este comando.')
+      if (shouldRequireUserAdmin(handler) && !baseCtx.userIsAdmin && !baseCtx.isOwner) {
+        await deny(sock, from, msg, '「✦」Solo admins del grupo.')
         return
       }
       if (shouldRequireBotAdmin(handler) && !baseCtx.botIsAdmin) {
-        await deny(sock, from, msg, '「✦」Necesito ser *admin* para usar este comando.')
-        return
-      }
-    } else {
-      if (shouldRequireUserAdmin(handler) || shouldRequireBotAdmin(handler)) {
-        await deny(sock, from, msg, '「✦」Este comando solo funciona en *grupos*.')
+        await deny(sock, from, msg, '「✦」Necesito ser admin.')
         return
       }
     }
 
-    await runCommand(handler, { sock, msg, from, sender, text, cmd, args, isGroup, usedPrefix }, baseCtx)
+    await runCommand(
+      handler,
+      {
+        sock,
+        msg,
+        from,
+        sender,
+        text,
+        cmd: parsed.cmd,
+        args: parsed.args,
+        isGroup,
+        usedPrefix
+      },
+      baseCtx
+    )
   } catch (err) {
     console.error(chalk.red('[MANAGER] Error handleMessage:'), err)
   }
