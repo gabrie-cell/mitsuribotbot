@@ -41,10 +41,13 @@ async function downloadMedia(msgContent, type) {
   return buffer
 }
 
-const handler = async (m, { conn, args, participants }) => {
+const handler = async (ctx, args) => {
+  const { sock, from, isGroup } = ctx
+  if (!isGroup) return
   if (!m.isGroup || m.fromMe) return
 
-  const users = participants.map(p => p.id)
+  const meta = await sock.groupMetadata(from)
+const users = meta.participants.map(p => p.id)
   const textExtra = args.join(' ').trim()
 
   const fkontak = {
