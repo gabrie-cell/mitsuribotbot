@@ -196,25 +196,40 @@ export async function handleMessage(sock, msg, store) {
       return
     }
 
-    if (handler.group && !isGroup) {
-      await sock.sendMessage(from, { text: 'Este comando solo funciona en grupos' })
-      return
-    }
+    if (handler.admin && isGroup) {
+  const meta = await sock.groupMetadata(from)
+  const admins = meta.participants
+    .filter(p => p.admin)
+    .map(p => p.id)
 
-    const m = smsg(sock, msg, store)
+  if (!admins.includes(sender)) {
+    await sock.sendMessage(from, { text: 'No eres admin' })
+    return
+  }
+}
 
-    if (handler.admin && isGroup && !m.isAdmin) {
-      await sock.sendMessage(from, { text: 'No eres admin' })
-      return
-    }
+if (handler.botadm && isGroup) {
+  const meta = await sock.groupMetadata(from)
+  const botId = normalizeJid(sock.user.id)
+  const bot = meta.participants.find(p => normalizeJid(p.id) === botId)
 
-    if (handler.botadm && isGroup && !m.isBotAdmin) {
-      await sock.sendMessage(from, { text: 'El bot no es admin' })
-      return
-    }
+  if (!bot || !bot.admin) {
+    await sock.sendMessage(from, { text: 'El bot no es admin' })
+    return
+  }
+}
 
-    await handler.run(m, parsed.args)
-
+await handler.run(
+  {
+    sock,
+    msg,
+    from,
+    sender,
+    text,
+    isGroup
+  },
+  parsed.args
+)
   } catch (e) {
     console.error(chalk.red('[MANAGER] Error handleMessage:'), e)
   }
