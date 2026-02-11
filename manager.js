@@ -290,29 +290,51 @@ export function start() {
 
 export function all(m) {
   const type = m.mtype
-  if (type !== 'buttonsResponseMessage' && type !== 'listResponseMessage') return
+  if (
+    type !== 'buttonsResponseMessage' &&
+    type !== 'listResponseMessage' &&
+    type !== 'interactiveResponseMessage'
+  ) return
 
   let selection
 
   if (type === 'buttonsResponseMessage') {
     selection = m.message?.buttonsResponseMessage?.selectedButtonId
-  } else {
+  } else if (type === 'listResponseMessage') {
     selection = m.message?.listResponseMessage?.singleSelectReply?.selectedRowId
+  } else {
+    const json =
+      m.message?.interactiveResponseMessage?.nativeFlowResponseMessage
+        ?.paramsJson
+    try {
+      selection = JSON.parse(json)?.id || json
+    } catch {
+      selection = json
+    }
   }
 
   if (!selection) return
 
-  m.text = selection
-  m.body = selection
+  const prefix =
+    globalThis?.prefijo ||
+    globalThis?.PREFIX ||
+    '.'
+
+  const text = prefix + String(selection).trim()
+
+  // Inyectar como mensaje normal
+  m.text = text
+  m.body = text
 
   if (!m.message.conversation)
-    m.message.conversation = selection
+    m.message.conversation = text
 
   if (!m.message.extendedTextMessage)
     m.message.extendedTextMessage = {}
 
-  m.message.extendedTextMessage.text = selection
+  m.message.extendedTextMessage.text = text
 
   delete m.message.buttonsResponseMessage
   delete m.message.listResponseMessage
+  delete m.message.interactiveResponseMessage
 }
