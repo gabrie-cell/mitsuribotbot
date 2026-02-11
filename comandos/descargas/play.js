@@ -1,5 +1,4 @@
 import yts from "yt-search"
-import { prepareWAMessageMedia } from "@whiskeysockets/baileys"
 
 const handler = async (m, { conn, args, usedPrefix, command }) => {
   const query = args.join(" ").trim()
@@ -15,7 +14,17 @@ const handler = async (m, { conn, args, usedPrefix, command }) => {
     react: { text: "🕒", key: m.key }
   })
 
-  const search = await yts(query)
+  let search
+  try {
+    search = await yts(query)
+  } catch (e) {
+    return conn.sendMessage(
+      m.chat,
+      { text: "❌ Error al buscar en YouTube" },
+      { quoted: m }
+    )
+  }
+
   const video = search.videos?.[0]
   if (!video) {
     return conn.sendMessage(
@@ -33,11 +42,6 @@ const handler = async (m, { conn, args, usedPrefix, command }) => {
   const audioCmd = `${usedPrefix}ytmp3 ${video.url}`
   const videoCmd = `${usedPrefix}ytmp4 ${video.url}`
 
-  const media = await prepareWAMessageMedia(
-    { image: { url: video.thumbnail } },
-    { upload: conn.waUploadToServer }
-  )
-
   await conn.sendMessage(
     m.chat,
     {
@@ -48,10 +52,16 @@ const handler = async (m, { conn, args, usedPrefix, command }) => {
               title: "🎵 Reproductor",
               subtitle: "Selecciona formato",
               hasMediaAttachment: true,
-              imageMessage: media.imageMessage
+              image: {
+                url: video.thumbnail
+              }
             },
-            body: { text: caption },
-            footer: { text: "© Bot" },
+            body: {
+              text: caption
+            },
+            footer: {
+              text: "© Bot"
+            },
             nativeFlowMessage: {
               buttons: [
                 {
