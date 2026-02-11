@@ -128,8 +128,6 @@ async function iniciarBot() {
     }
   })
 
-  groupAvisos(sock)
-
   sock.ev.on("messages.upsert", async ({ messages, type }) => {
     if (type !== "notify") return
 
