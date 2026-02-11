@@ -4,7 +4,6 @@ import readlineSync from "readline-sync"
 import fs from "fs"
 import pino from "pino"
 import { start, handleMessage } from "./manager.js"
-import groupAvisos from "./biblioteca/avisos.js"
 import { getCommandPrefix } from "./biblioteca/settings.js"
 import config from "./config.js"
 import { startWebPanel } from './webpanel/app.js'
