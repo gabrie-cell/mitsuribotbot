@@ -250,6 +250,7 @@ export async function handleMessage(sock, msg) {
       body: text,
       args: parsed.args,
       command: parsed.cmd,
+      isGroup,
       reply: t => sock.sendMessage(from, { text: t }, { quoted: msg })
     })
 
