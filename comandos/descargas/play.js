@@ -11,14 +11,14 @@ Selecciona una opción:
       name: 'quick_reply',
       buttonParamsJson: JSON.stringify({
         display_text: '🖼️ Sticker',
-        id: 's'
+        id: '.s'
       })
     },
     {
       name: 'quick_reply',
       buttonParamsJson: JSON.stringify({
         display_text: '👥 Tagall',
-        id: 'todos'
+        id: '.todos'
       })
     }
   ]
